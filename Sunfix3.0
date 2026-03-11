@@ -1,0 +1,20 @@
+-- [[ STELLAR: SUN FIX v3 (CLEAN) ]] --
+
+local Lighting = game:GetService("Lighting")
+local Sky = Lighting:FindFirstChildOfClass("Sky")
+
+if not Sky then
+    -- If no Sky exists, create one to ensure the fix applies
+    Sky = Instance.new("Sky", Lighting)
+end
+
+if Sky then
+    Sky.SunTextureId = "rbxassetid://243728166"  -- Soft Yellow Sun
+    Sky.SunAngularSize = 21
+    Sky.MoonTextureId = "rbxassetid://6444320592" -- Detailed Moon
+    Sky.MoonAngularSize = 11
+    
+    print("STELLAR: Sun Fix v3 Applied ✓")
+else
+    warn("STELLAR: Sky Object not found or could not be created.")
+end
