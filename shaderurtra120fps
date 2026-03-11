@@ -1,0 +1,131 @@
+-- [[ STELLAR HUB v4.2.7: LOGIC MASTER ]] --
+-- Update: แยกช่วง Loop เวลาตาม Profile เพื่อป้องกัน ClockTime Conflict
+
+local Lighting = game:GetService("Lighting")
+local Terrain = workspace.Terrain
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+-- [ PHASE 1: PERFORMANCE ] --
+pcall(function() if setfpscap then setfpscap(120) end end)
+pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level21 end)
+
+-- [ PHASE 2: STELLAR HUD ] --
+if CoreGui:FindFirstChild("STELLAR_HUD") then CoreGui:FindFirstChild("STELLAR_HUD"):Destroy() end
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = "STELLAR_HUD"
+ScreenGui.IgnoreGuiInset, ScreenGui.ResetOnSpawn = true, false
+
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size, Frame.Position = UDim2.new(0, 130, 0, 70), UDim2.new(0, 10, 0, 50)
+Frame.BackgroundColor3, Frame.BackgroundTransparency = Color3.fromRGB(0, 0, 0), 0.35
+Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 10)
+local Stroke = Instance.new("UIStroke", Frame)
+Stroke.Color, Stroke.Thickness = Color3.fromRGB(0, 200, 255), 1.2
+
+local Title = Instance.new("TextLabel", Frame)
+Title.Size, Title.BackgroundTransparency = UDim2.new(1, 0, 0.35, 0), 1
+Title.TextColor3, Title.TextSize, Title.Font = Color3.fromRGB(0, 200, 255), 11, Enum.Font.Code
+Title.Text = "✨ STELLAR HUB v4.2.7"
+
+local FPSLabel = Instance.new("TextLabel", Frame)
+FPSLabel.Size, FPSLabel.Position = UDim2.new(1, 0, 0.4, 0), UDim2.new(0, 0, 0.32, 0)
+FPSLabel.BackgroundTransparency, FPSLabel.TextSize, FPSLabel.Font = 1, 18, Enum.Font.Code
+FPSLabel.Text = "FPS: --"
+
+local StatusLabel = Instance.new("TextLabel", Frame)
+StatusLabel.Size, StatusLabel.Position = UDim2.new(1, 0, 0.3, 0), UDim2.new(0, 0, 0.7, 0)
+StatusLabel.BackgroundTransparency, StatusLabel.TextSize, StatusLabel.Font = 1, 11, Enum.Font.Code
+StatusLabel.Text = "Status: Booting"
+
+local nextUpdate, frameCount = 0, 0
+RunService.RenderStepped:Connect(function(dt)
+    frameCount += 1
+    nextUpdate += dt
+    if nextUpdate >= 0.5 then
+        local fps = math.round(frameCount / nextUpdate)
+        FPSLabel.Text = "FPS: " .. fps
+        FPSLabel.TextColor3 = fps >= 60 and Color3.fromRGB(0, 255, 150) or fps >= 30 and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(255, 60, 60)
+        frameCount, nextUpdate = 0, 0
+    end
+end)
+
+-- [ PHASE 3: PROFILE & APPLY FUNCTION ] --
+local DAY = {
+    clock = 10, brightness = 2.5, exposure = 0.25,
+    ambient = Color3.fromRGB(100, 100, 110), atmoColor = Color3.fromRGB(185, 215, 255),
+    atmoDecay = Color3.fromRGB(110, 120, 140), atmoGlare = 1.5, atmoHaze = 1.5,
+    atmoDensity = 0.25, contrast = 0.2, saturation = 0.4,
+    tint = Color3.fromRGB(255, 255, 255), bloom = 0.4, bloomSize = 18, bloomThreshold = 0.8,
+}
+
+local NIGHT = {
+    clock = 21, brightness = 1.9, exposure = 0.2,
+    ambient = Color3.fromRGB(30, 38, 65), atmoColor = Color3.fromRGB(30, 50, 100),
+    atmoDecay = Color3.fromRGB(20, 25, 55), atmoGlare = 0.3, atmoHaze = 0.6,
+    atmoDensity = 0.25, contrast = 0.2, saturation = 0.3,
+    tint = Color3.fromRGB(215, 228, 255), bloom = 0.8, bloomSize = 18, bloomThreshold = 0.5,
+}
+
+for _, v in pairs(Lighting:GetChildren()) do
+    if v:IsA("PostProcessEffect") or v:IsA("Atmosphere") or v:IsA("Sky") then v:Destroy() end
+end
+
+local Atmosphere = Instance.new("Atmosphere", Lighting)
+local ColorCorrection = Instance.new("ColorCorrectionEffect", Lighting)
+local Bloom = Instance.new("BloomEffect", Lighting)
+local SunRays = Instance.new("SunRaysEffect", Lighting)
+local DOF = Instance.new("DepthOfFieldEffect", Lighting)
+DOF.FarIntensity, DOF.FocusDistance, DOF.InFocusRadius = 0.35, 35, 20
+
+local function applyProfile(p)
+    Lighting.ClockTime = p.clock
+    Lighting.Brightness = p.brightness
+    Lighting.ExposureCompensation = p.exposure
+    Lighting.OutdoorAmbient = p.ambient
+    Atmosphere.Color, Atmosphere.Decay = p.atmoColor, p.atmoDecay
+    Atmosphere.Glare, Atmosphere.Haze, Atmosphere.Density = p.atmoGlare, p.atmoHaze, p.atmoDensity
+    ColorCorrection.Contrast, ColorCorrection.Saturation, ColorCorrection.TintColor = p.contrast, p.saturation, p.tint
+    Bloom.Intensity, Bloom.Size, Bloom.Threshold = p.bloom, p.bloomSize, p.bloomThreshold
+end
+
+-- [ PHASE 4: DYNAMIC SWITCHER & SMART LOOP ] --
+local isDay = true
+applyProfile(DAY)
+
+-- สลับโหมดทุก 300 วินาที
+task.spawn(function()
+    while task.wait(300) do 
+        isDay = not isDay
+        applyProfile(isDay and DAY or NIGHT)
+        StatusLabel.Text = isDay and "◉ MODE: DAY" or "◉ MODE: NIGHT"
+    end
+end)
+
+-- ✅ Smart Loop Check (แก้ตามที่ท่านสั่ง)
+task.spawn(function()
+    while task.wait(0.1) do
+        local t = Lighting.ClockTime + 0.005
+        if isDay then
+            if t >= 17.5 then t = 6 end  -- กลางวัน วน 6 โมงเช้า -> 5 โมงเย็น
+        else
+            if t >= 24 then t = 18 end   -- กลางคืน วน 6 โมงเย็น -> เที่ยงคืน
+        end
+        Lighting.ClockTime = t
+    end
+end)
+
+-- [ PHASE 5: SURFACE PASS ] --
+task.spawn(function()
+    for _, v in pairs(game:GetDescendants()) do
+        if v:IsA("BasePart") or v:IsA("MeshPart") then
+            v.CastShadow = true
+            if v.Material == Enum.Material.Concrete or v.Material == Enum.Material.SmoothPlastic or v.Material == Enum.Material.Cobblestone then
+                v.Reflectance = 0.3
+            end
+        end
+    end
+    StatusLabel.Text = isDay and "◉ MODE: DAY" or "◉ MODE: NIGHT"
+end)
+
+print("Stellar Hub v4.2.7: Smart Loop Logic Active ✓")
