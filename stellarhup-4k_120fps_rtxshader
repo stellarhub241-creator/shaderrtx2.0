@@ -1,0 +1,205 @@
+-- [[ STELLARHUP: THE MASTERPIECE ]] --
+-- Features: Deep Shadows, 4K Reflectance, Dual-HUD, Dynamic FPS Stroke
+
+local Lighting = game:GetService("Lighting")
+local Terrain = workspace.Terrain
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+-- [ PHASE 1: PERFORMANCE ENGINE ] --
+pcall(function() 
+    if setfpscap then setfpscap(120) end 
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level21
+end)
+Terrain.WaterReflectance, Terrain.WaterTransparency = 1, 0.6
+
+-- [ PHASE 2: DUAL-HUD SYSTEM ] --
+if CoreGui:FindFirstChild("STELLARHUP_HUD") then CoreGui:FindFirstChild("STELLARHUP_HUD"):Destroy() end
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = "STELLARHUP_HUD"
+ScreenGui.IgnoreGuiInset, ScreenGui.ResetOnSpawn = true, false
+
+-- กล่องหลัก: Status & Mode
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size, MainFrame.Position = UDim2.new(0, 140, 0, 50), UDim2.new(0, 10, 0, 50)
+MainFrame.BackgroundColor3, MainFrame.BackgroundTransparency = Color3.fromRGB(0,0,0), 0.35
+MainFrame.Active, MainFrame.Draggable = true, true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Color, MainStroke.Thickness, MainStroke.Transparency = Color3.fromRGB(0,200,255), 1.2, 0.4
+
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Size, Title.BackgroundTransparency = UDim2.new(1,0,0.4,0), 1
+Title.TextColor3, Title.TextSize, Title.Font = Color3.fromRGB(0,200,255), 11, Enum.Font.Code
+Title.Text = "✨ STELLARHUP"
+
+local ModeLabel = Instance.new("TextLabel", MainFrame)
+ModeLabel.Size, ModeLabel.Position = UDim2.new(1,0,0.5,0), UDim2.new(0,0,0.4,0)
+ModeLabel.BackgroundTransparency, ModeLabel.TextSize, ModeLabel.Font = 1, 13, Enum.Font.Code
+ModeLabel.TextColor3, ModeLabel.Text = Color3.fromRGB(180,180,180), "Mode: --"
+
+-- กล่องรอง: Dynamic FPS Counter
+local FPSFrame = Instance.new("Frame", ScreenGui)
+FPSFrame.Size, FPSFrame.Position = UDim2.new(0, 100, 0, 30), UDim2.new(0, 10, 0, 105)
+FPSFrame.BackgroundColor3, FPSFrame.BackgroundTransparency = Color3.fromRGB(0,0,0), 0.35
+FPSFrame.Active, FPSFrame.Draggable = true, true
+Instance.new("UICorner", FPSFrame).CornerRadius = UDim.new(0, 8)
+
+local FPSStroke = Instance.new("UIStroke", FPSFrame)
+FPSStroke.Thickness, FPSStroke.Transparency = 1.2, 0.4
+
+local FPSLabel = Instance.new("TextLabel", FPSFrame)
+FPSLabel.Size, FPSLabel.BackgroundTransparency = UDim2.new(1,0,1,0), 1
+FPSLabel.TextSize, FPSLabel.Font = 14, Enum.Font.Code
+FPSLabel.Text = "⚡ -- FPS"
+
+-- [ PHASE 3: LIGHTING & SKY SETUP ] --
+for _, v in pairs(Lighting:GetChildren()) do
+    if v:IsA("PostProcessEffect") or v:IsA("Atmosphere") or v:IsA("Sky") then v:Destroy() end
+end
+
+local Sky = Instance.new("Sky", Lighting)
+Sky.SunTextureId, Sky.SunAngularSize = "rbxassetid://1079349813", 21
+Sky.MoonTextureId, Sky.MoonAngularSize = "rbxassetid://6444320592", 11
+Sky.StarCount, Sky.CelestialBodiesShown = 8000, true
+
+local Atmosphere = Instance.new("Atmosphere", Lighting)
+local ColorCorrection = Instance.new("ColorCorrectionEffect", Lighting)
+local Bloom = Instance.new("BloomEffect", Lighting)
+local SunRays = Instance.new("SunRaysEffect", Lighting)
+local DOF = Instance.new("DepthOfFieldEffect", Lighting)
+DOF.NearIntensity, DOF.FocusDistance, DOF.InFocusRadius = 0, 35, 20
+
+-- [ PHASE 4: CINEMATIC PROFILES ] --
+local PROFILES = {
+    DAWN = {
+        brightness=1.6, exposure=0.15, shadow=0.2, ambient=Color3.fromRGB(50,35,55),
+        atmoColor=Color3.fromRGB(180,120,160), atmoDecay=Color3.fromRGB(80,40,80),
+        atmoGlare=1.0, atmoHaze=1.8, atmoDensity=0.3, contrast=0.25, saturation=0.4,
+        tint=Color3.fromRGB(255,210,220), bloom=0.5, bloomSize=18, bloomThreshold=0.7, dofFar=0.3, sunRays=0.2,
+    },
+    DAY = { 
+        brightness=1.5, exposure=0.1, shadow=0.3, ambient=Color3.fromRGB(50,50,60),
+        atmoColor=Color3.fromRGB(185,215,255), atmoDecay=Color3.fromRGB(110,120,140),
+        atmoGlare=1.2, atmoHaze=1.2, atmoDensity=0.25, contrast=0.35, saturation=0.45,
+        tint=Color3.fromRGB(255,235,200), bloom=0.35, bloomSize=16, bloomThreshold=0.85, dofFar=0.2, sunRays=0.25,
+    },
+    GOLDEN = {
+        brightness=2.2, exposure=0.2, shadow=0.2, ambient=Color3.fromRGB(80,50,30),
+        atmoColor=Color3.fromRGB(255,130,50), atmoDecay=Color3.fromRGB(150,60,10),
+        atmoGlare=2.0, atmoHaze=2.0, atmoDensity=0.35, contrast=0.35, saturation=0.7,
+        tint=Color3.fromRGB(255,200,130), bloom=0.5, bloomSize=18, bloomThreshold=0.65, dofFar=0.4, sunRays=0.45,
+    },
+    NIGHT = {
+        brightness=1.8, exposure=0.18, shadow=0.25, ambient=Color3.fromRGB(20,28,55),
+        atmoColor=Color3.fromRGB(20,35,80), atmoDecay=Color3.fromRGB(10,15,40),
+        atmoGlare=0.5, atmoHaze=1.5, atmoDensity=0.35, contrast=0.35, saturation=0.4,
+        tint=Color3.fromRGB(200,220,255), bloom=1.0, bloomSize=22, bloomThreshold=0.4, dofFar=0.4, sunRays=0.1,
+    },
+}
+
+local function applyProfile(p)
+    Lighting.Brightness, Lighting.ExposureCompensation = p.brightness, p.exposure
+    Lighting.ShadowSoftness, Lighting.OutdoorAmbient = p.shadow, p.ambient
+    Atmosphere.Color, Atmosphere.Decay = p.atmoColor, p.atmoDecay
+    Atmosphere.Glare, Atmosphere.Haze, Atmosphere.Density = p.atmoGlare, p.atmoHaze, p.atmoDensity
+    ColorCorrection.Contrast, ColorCorrection.Saturation, ColorCorrection.TintColor = p.contrast, p.saturation, p.tint
+    Bloom.Intensity, Bloom.Size, Bloom.Threshold = p.bloom, p.bloomSize, p.bloomThreshold
+    DOF.FarIntensity, SunRays.Intensity = p.dofFar, p.sunRays
+end
+
+-- [ PHASE 5: FPS ENGINE (THE UPDATE) ] --
+local nextUpdate, frameCount = 0, 0
+RunService.RenderStepped:Connect(function(dt)
+    frameCount += 1
+    nextUpdate += dt
+    if nextUpdate >= 0.5 then
+        local fps = math.round(frameCount / nextUpdate)
+        
+        -- ✅ แก้ไขตามที่ท่านสั่ง: แสดงหน่วย FPS ต่อท้าย
+        FPSLabel.Text = "⚡ " .. fps .. " FPS"
+        
+        local color =
+            fps >= 120 and Color3.fromRGB(180,0,255)
+            or fps >= 90 and Color3.fromRGB(0,200,255)
+            or fps >= 60 and Color3.fromRGB(0,255,150)
+            or fps >= 30 and Color3.fromRGB(255,200,0)
+            or Color3.fromRGB(255,60,60)
+        FPSLabel.TextColor3 = color
+        FPSStroke.Color = color
+        frameCount, nextUpdate = 0, 0
+    end
+end)
+
+-- [ PHASE 6: REAL-TIME INTERPOLATION ENGINE ] --
+local function lerpN(a,b,t) return a+(b-a)*t end
+local function lerpC(a,b,t) return Color3.new(a.R+(b.R-a.R)*t,a.G+(b.G-a.G)*t,a.B+(b.B-a.B)*t) end
+local function lerpProfile(a,b,t)
+    return {
+        brightness=lerpN(a.brightness,b.brightness,t), exposure=lerpN(a.exposure,b.exposure,t),
+        shadow=lerpN(a.shadow,b.shadow,t), ambient=lerpC(a.ambient,b.ambient,t),
+        atmoColor=lerpC(a.atmoColor,b.atmoColor,t), atmoDecay=lerpC(a.atmoDecay,b.atmoDecay,t),
+        atmoGlare=lerpN(a.atmoGlare,b.atmoGlare,t), atmoHaze=lerpN(a.atmoHaze,b.atmoHaze,t),
+        atmoDensity=lerpN(a.atmoDensity,b.atmoDensity,t), contrast=lerpN(a.contrast,b.contrast,t),
+        saturation=lerpN(a.saturation,b.saturation,t), tint=lerpC(a.tint,b.tint,t),
+        bloom=lerpN(a.bloom,b.bloom,t), bloomSize=lerpN(a.bloomSize,b.bloomSize,t),
+        bloomThreshold=lerpN(a.bloomThreshold,b.bloomThreshold,t), dofFar=lerpN(a.dofFar,b.dofFar,t),
+        sunRays=lerpN(a.sunRays,b.sunRays,t),
+    }
+end
+
+task.spawn(function()
+    while task.wait(0.2) do
+        local t = Lighting.ClockTime
+        if t >= 5 and t < 6 then
+            applyProfile(lerpProfile(PROFILES.NIGHT,PROFILES.DAWN,(t-5)/1))
+            ModeLabel.TextColor3,ModeLabel.Text,MainStroke.Color = Color3.fromRGB(255,180,200),"🌄 DAWN",Color3.fromRGB(255,180,200)
+        elseif t >= 6 and t < 15 then
+            applyProfile(PROFILES.DAY)
+            ModeLabel.TextColor3,ModeLabel.Text,MainStroke.Color = Color3.fromRGB(255,220,100),"☀️ DAY MODE",Color3.fromRGB(255,220,100)
+        elseif t >= 15 and t < 19 then
+            applyProfile(lerpProfile(PROFILES.DAY,PROFILES.GOLDEN,(t-15)/4))
+            ModeLabel.TextColor3,ModeLabel.Text,MainStroke.Color = Color3.fromRGB(255,160,80),"🌅 GOLDEN HOUR",Color3.fromRGB(255,160,80)
+        elseif t >= 19 and t < 21 then
+            applyProfile(lerpProfile(PROFILES.GOLDEN,PROFILES.NIGHT,(t-19)/2))
+            ModeLabel.TextColor3,ModeLabel.Text,MainStroke.Color = Color3.fromRGB(150,180,255),"🌆 SUNSET",Color3.fromRGB(150,180,255)
+        else
+            applyProfile(PROFILES.NIGHT)
+            ModeLabel.TextColor3,ModeLabel.Text,MainStroke.Color = Color3.fromRGB(100,180,255),"🌙 NIGHT MODE",Color3.fromRGB(100,180,255)
+        end
+    end
+end)
+
+-- [ PHASE 7: 4K SURFACE PASS & PBR LOGIC ] --
+task.spawn(function()
+    local count = 0
+    for _, v in pairs(game:GetDescendants()) do
+        count += 1
+        if count % 100 == 0 then task.wait() end
+        if v:IsA("BasePart") or v:IsA("MeshPart") then
+            v.CastShadow = true
+            local m = v.Material
+            if m == Enum.Material.Concrete then v.Reflectance = 0.15
+            elseif m == Enum.Material.SmoothPlastic then v.Reflectance = 0.4
+            elseif m == Enum.Material.Cobblestone then v.Reflectance = 0.1
+            elseif m == Enum.Material.Wood or m == Enum.Material.WoodPlanks then v.Reflectance = 0.05
+            elseif m == Enum.Material.Marble then v.Reflectance = 0.6
+            elseif m == Enum.Material.Granite then v.Reflectance = 0.35
+            elseif m == Enum.Material.Metal or m == Enum.Material.DiamondPlate then v.Reflectance = 0.7
+            elseif m == Enum.Material.Glass then v.Reflectance = 0.85
+            elseif m == Enum.Material.Neon then v.Reflectance = 0.9
+            elseif m == Enum.Material.Ice then v.Reflectance = 0.75
+            elseif m == Enum.Material.Sand then v.Reflectance = 0.05
+            elseif m == Enum.Material.Grass then v.Reflectance = 0.0
+            end
+        elseif (v:IsA("PointLight") or v:IsA("SpotLight")) and not v:GetAttribute("STL_Init") then
+            v:SetAttribute("STL_Init", true)
+            v.Brightness, v.Range = math.min(v.Brightness*1.8,10), math.min(v.Range*1.3,60)
+        elseif v:IsA("ParticleEmitter") and not v:GetAttribute("STL_Init") then
+            v:SetAttribute("STL_Init", true)
+            v.LightEmission = math.min(v.LightEmission*1.5,1)
+        end
+    end
+end)
+
+print("STELLARHUP Loaded ✓")
