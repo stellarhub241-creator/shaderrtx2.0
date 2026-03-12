@@ -1,0 +1,196 @@
+-- [[ STELLARHUP: SPECTATE + DETECTOR v3.4 ]] --
+-- Final Fix: Anti-Spam for Teleport Log --
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
+
+-- [ SETTINGS ] --
+local SpectateTarget = nil
+local SpectateMode = "OFF"
+local FreeCamCFrame = CFrame.new(0,50,0)
+local FreeCamSpeed = 1.2
+local SPEED_LIMIT = 200 
+local TELE_LIMIT = 200
+local lastPositions = {}
+local suspiciousLog = {} 
+local targetIndex = 0
+local orbitAngleX, orbitAngleY, orbitDistance = 0, 20, 15
+local lastTouchPos = nil
+local camButtons = {Forward=false,Back=false,Left=false,Right=false,Up=false,Down=false}
+
+-- [ CLEAN UP ] --
+if CoreGui:FindFirstChild("SPEC_HUD") then CoreGui:FindFirstChild("SPEC_HUD"):Destroy() end
+local ScreenGui = Instance.new("ScreenGui", CoreGui); ScreenGui.Name = "SPEC_HUD"; ScreenGui.IgnoreGuiInset = true
+
+-- [ TOUCH ORBIT ] --
+ScreenGui.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch then lastTouchPos = Vector2.new(i.Position.X, i.Position.Y) end end)
+ScreenGui.InputChanged:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.Touch and lastTouchPos and SpectateMode == "FOLLOW" then
+        local d = Vector2.new(i.Position.X, i.Position.Y) - lastTouchPos
+        orbitAngleX = orbitAngleX - (d.X * 0.4)
+        orbitAngleY = math.clamp(orbitAngleY - (d.Y * 0.3), 5, 80)
+        lastTouchPos = Vector2.new(i.Position.X, i.Position.Y)
+    end
+end)
+ScreenGui.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch then lastTouchPos = nil end end)
+
+-- [ MAIN FRAME SETUP ] --
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.new(0,155,0,235); Frame.Position = UDim2.new(0,10,0.35,0)
+Frame.BackgroundColor3 = Color3.new(0,0,0); Frame.BackgroundTransparency = 0.35; Frame.Active = true; Frame.Draggable = true
+Instance.new("UICorner", Frame); Instance.new("UIStroke", Frame).Color = Color3.fromRGB(0,200,255)
+
+local TitleBar = Instance.new("Frame", Frame)
+TitleBar.Size = UDim2.new(1,0,0.11,0); TitleBar.BackgroundColor3 = Color3.fromRGB(0,30,60); TitleBar.BorderSizePixel = 0
+Instance.new("UICorner", TitleBar)
+
+local TitleLabel = Instance.new("TextLabel", TitleBar)
+TitleLabel.Size = UDim2.new(0.7,0,1,0); TitleLabel.Position = UDim2.new(0.05,0,0,0); TitleLabel.BackgroundTransparency = 1
+TitleLabel.TextColor3 = Color3.fromRGB(0,200,255); TitleLabel.TextSize = 10; TitleLabel.Font = Enum.Font.Code; TitleLabel.Text = "STELLAR v3.4"
+
+local MinBtn = Instance.new("TextButton", TitleBar)
+MinBtn.Size = UDim2.new(0.2,0,0.8,0); MinBtn.Position = UDim2.new(0.78,0,0.1,0); MinBtn.Text = "—"
+MinBtn.BackgroundColor3 = Color3.fromRGB(30,80,150); MinBtn.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", MinBtn)
+
+local Content = Instance.new("Frame", Frame)
+Content.Size = UDim2.new(1,0,0.89,0); Content.Position = UDim2.new(0,0,0.11,0); Content.BackgroundTransparency = 1
+
+local Status = Instance.new("TextLabel", Content)
+Status.Size = UDim2.new(1,0,0.1,0); Status.BackgroundTransparency = 1; Status.TextColor3 = Color3.new(0.7,0.7,0.7); Status.Text = "Mode: OFF"
+
+local minimized = false
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    Content.Visible = not minimized
+    MinBtn.Text = minimized and "+" or "—"
+    TweenService:Create(Frame, TweenInfo.new(0.2), {Size = minimized and UDim2.new(0,155,0,30) or UDim2.new(0,155,0,235)}):Play()
+end)
+
+local function MakeBtn(txt, y, color, callback)
+    local btn = Instance.new("TextButton", Content)
+    btn.Size = UDim2.new(0.9,0,0.14,0); btn.Position = UDim2.new(0.05,0,y,0)
+    btn.Text = txt; btn.BackgroundColor3 = color; btn.TextColor3 = Color3.new(1,1,1); btn.TextSize = 10; btn.Font = Enum.Font.Code
+    Instance.new("UICorner", btn); btn.MouseButton1Click:Connect(callback)
+end
+
+MakeBtn("⏭ Next Player", 0.10, Color3.fromRGB(30,80,150), function()
+    local plrs = {}
+    for _,p in pairs(Players:GetPlayers()) do if p ~= LocalPlayer and p.Character then table.insert(plrs, p) end end
+    if #plrs == 0 then return end
+    targetIndex = (targetIndex % #plrs) + 1
+    SpectateTarget = plrs[targetIndex]
+    Status.Text = "Target: "..SpectateTarget.Name
+end)
+
+MakeBtn("👁 Orbit Cam", 0.26, Color3.fromRGB(0,120,80), function()
+    if not SpectateTarget then Status.Text = "Select Target!" return end
+    SpectateMode = "FOLLOW"; Camera.CameraType = Enum.CameraType.Scriptable; Status.Text = "Orbiting..."
+end)
+
+MakeBtn("🎯 Lock On", 0.42, Color3.fromRGB(120,60,0), function()
+    if not SpectateTarget then Status.Text = "Select Target!" return end
+    SpectateMode = "LOCKON"; Camera.CameraType = Enum.CameraType.Scriptable; Status.Text = "Locking..."
+end)
+
+MakeBtn("🚁 Free Cam", 0.58, Color3.fromRGB(80,0,120), function()
+    SpectateMode = "FREECAM"; Camera.CameraType = Enum.CameraType.Scriptable; FreeCamCFrame = Camera.CFrame; Status.Text = "FreeCam"
+end)
+
+MakeBtn("↩ Reset", 0.78, Color3.fromRGB(150,50,50), function()
+    SpectateMode = "OFF"; SpectateTarget = nil; Camera.CameraType = Enum.CameraType.Custom; Status.Text = "Mode: OFF"
+end)
+
+-- [ LOG UI ] --
+local LogFrame = Instance.new("Frame", ScreenGui)
+LogFrame.Size = UDim2.new(0,190,0,130); LogFrame.Position = UDim2.new(0,170,0.35,0)
+LogFrame.BackgroundColor3 = Color3.new(0,0,0); LogFrame.BackgroundTransparency = 0.35; LogFrame.Active = true; LogFrame.Draggable = true
+Instance.new("UICorner", LogFrame); Instance.new("UIStroke", LogFrame).Color = Color3.new(1,0,0)
+
+local LogTitle = Instance.new("TextLabel", LogFrame)
+LogTitle.Size = UDim2.new(1,0,0.2,0); LogTitle.BackgroundColor3 = Color3.fromRGB(60,0,0); LogTitle.TextColor3 = Color3.new(1,1,1)
+LogTitle.Text = " ⚠️ DETECTOR LOG"; LogTitle.TextSize = 10; LogTitle.Font = Enum.Font.Code; LogTitle.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", LogTitle)
+
+local ScrollLog = Instance.new("ScrollingFrame", LogFrame)
+ScrollLog.Size = UDim2.new(1,-10,0.75,0); ScrollLog.Position = UDim2.new(0,5,0.22,0); ScrollLog.BackgroundTransparency = 1; ScrollLog.ScrollBarThickness = 2
+local UIList = Instance.new("UIListLayout", ScrollLog); UIList.Padding = UDim.new(0,2)
+
+local function AddLog(text, color)
+    local lbl = Instance.new("TextLabel", ScrollLog)
+    lbl.Size = UDim2.new(1,0,0,15); lbl.BackgroundTransparency = 1; lbl.TextColor3 = color or Color3.new(1,1,0)
+    lbl.TextSize = 9; lbl.Font = Enum.Font.Code; lbl.Text = text; lbl.TextXAlignment = Enum.TextXAlignment.Left
+    if #ScrollLog:GetChildren() > 15 then ScrollLog:GetChildren()[2]:Destroy() end
+    ScrollLog.CanvasSize = UDim2.new(0,0,0,UIList.AbsoluteContentSize.Y)
+end
+
+-- [ D-PAD ] --
+local DPad = Instance.new("Frame", ScreenGui); DPad.Size = UDim2.new(0,150,0,150); DPad.Position = UDim2.new(0.5,-75,0.65,0); DPad.BackgroundTransparency = 1; DPad.Visible = false; DPad.Draggable = true; DPad.Active = true
+local function CreateDBtn(name, pos, txt)
+    local b = Instance.new("TextButton", DPad); b.Size = UDim2.new(0,45,0,45); b.Position = pos; b.Text = txt; b.BackgroundColor3 = Color3.new(0,0,0); b.BackgroundTransparency = 0.5; b.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", b)
+    b.MouseButton1Down:Connect(function() camButtons[name] = true end); b.MouseButton1Up:Connect(function() camButtons[name] = false end)
+end
+CreateDBtn("Forward", UDim2.new(0.35,0,0,0), "▲"); CreateDBtn("Back", UDim2.new(0.35,0,0.6,0), "▼"); CreateDBtn("Left", UDim2.new(0,0,0.3,0), "◀"); CreateDBtn("Right", UDim2.new(0.7,0,0.3,0), "▶"); CreateDBtn("Up", UDim2.new(0.7,0,0,0), "↑"); CreateDBtn("Down", UDim2.new(0,0,0.6,0), "↓")
+
+-- [ MAIN LOOP ] --
+RunService.RenderStepped:Connect(function()
+    if SpectateMode == "FOLLOW" and SpectateTarget and SpectateTarget.Character then
+        local root = SpectateTarget.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local rX, rY = math.rad(orbitAngleX), math.rad(orbitAngleY)
+            local offset = Vector3.new(math.sin(rX)*math.cos(rY)*orbitDistance, math.sin(rY)*orbitDistance, math.cos(rX)*math.cos(rY)*orbitDistance)
+            Camera.CFrame = CFrame.new(root.Position + offset, root.Position)
+        end
+        DPad.Visible = false
+    elseif SpectateMode == "LOCKON" and SpectateTarget and SpectateTarget.Character then
+        local root = SpectateTarget.Character:FindFirstChild("HumanoidRootPart")
+        if root then Camera.CFrame = CFrame.new(Camera.CFrame.Position, root.Position) end
+        DPad.Visible = false
+    elseif SpectateMode == "FREECAM" then
+        DPad.Visible = true
+        local move = Vector3.new(0,0,0)
+        if camButtons.Forward then move += Camera.CFrame.LookVector end
+        if camButtons.Back then move -= Camera.CFrame.LookVector end
+        if camButtons.Left then move -= Camera.CFrame.RightVector end
+        if camButtons.Right then move += Camera.CFrame.RightVector end
+        if camButtons.Up then move += Vector3.new(0,1,0) end
+        if camButtons.Down then move -= Vector3.new(0,1,0) end
+        FreeCamCFrame = FreeCamCFrame + move * FreeCamSpeed
+        Camera.CFrame = FreeCamCFrame
+    else DPad.Visible = false end
+
+    -- [ DETECTOR ] --
+    for _, p in pairs(Players:GetPlayers()) do
+        if p == LocalPlayer or not p.Character then continue end
+        local root = p.Character:FindFirstChild("HumanoidRootPart")
+        local hum = p.Character:FindFirstChild("Humanoid")
+        if root and hum then
+            -- Speed Anti-Spam
+            if hum.WalkSpeed > SPEED_LIMIT then
+                if not suspiciousLog[p.Name.."_spd"] then
+                    suspiciousLog[p.Name.."_spd"] = true
+                    AddLog("⚡ "..p.Name.." spd:"..math.floor(hum.WalkSpeed))
+                end
+            else suspiciousLog[p.Name.."_spd"] = nil end
+            
+            -- Teleport Anti-Spam (Fixed!)
+            if lastPositions[p.Name] then
+                local dist = (root.Position - lastPositions[p.Name]).Magnitude
+                if dist > TELE_LIMIT then
+                    if not suspiciousLog[p.Name.."_tele"] then
+                        suspiciousLog[p.Name.."_tele"] = true
+                        AddLog("🔀 "..p.Name.." tele:"..math.floor(dist), Color3.fromRGB(255,50,50))
+                    end
+                else suspiciousLog[p.Name.."_tele"] = nil end
+            end
+            lastPositions[p.Name] = root.Position
+        end
+    end
+end)
+
+print("STELLARHUP v3.4 Final: Anti-Spam Loaded ✓")
