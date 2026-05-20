@@ -1,0 +1,681 @@
+-- [[ STELLARHUB: MINIMAP v1.2.1 - PREMIUM EDITION (COMPATIBILITY FIXED) ]] --
+-- Features: Expandable/Collapsible Map, Smooth Drag, Zoom In/Out (+/-), 
+--           Player Direction Indicator, Pin System, Saved Waypoints, Teleportation
+
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+local Players      = game:GetService("Players")
+local RunService   = game:GetService("RunService")
+local CoreGui      = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Camera       = workspace.CurrentCamera
+local LocalPlayer  = Players.LocalPlayer
+
+-- ตรวจสอบสิทธิ์และหาตำแหน่งวาง GUI ที่เหมาะสมที่สุดสำหรับเครื่องของผู้ใช้
+local ParentUI = nil
+local gethuiSuccess, _ = pcall(function()
+    if gethui then
+        ParentUI = gethui()
+    else
+        ParentUI = CoreGui
+    end
+end)
+
+if not ParentUI or not gethuiSuccess then
+    ParentUI = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- CLEANUP
+if ParentUI:FindFirstChild("STELLAR_MAP") then
+    ParentUI:FindFirstChild("STELLAR_MAP"):Destroy()
+end
+
+-- GUI MAIN CONTAINER
+local ScreenGui = Instance.new("ScreenGui", ParentUI)
+ScreenGui.Name = "STELLAR_MAP"
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ResetOnSpawn = false
+
+-- STATES & VARIABLES
+local currentZoom = 6
+local expanded = false
+local minimized = false
+local playerDots = {}
+local activePinPos = nil
+local savedWaypoints = {}
+
+local SIZE_SMALL    = UDim2.new(0, 180, 0, 180)
+local SIZE_BIG      = UDim2.new(0, 400, 0, 440)
+local SIZE_MINIMIZED = UDim2.new(0, 180, 0, 26)
+
+local POS_SMALL     = UDim2.new(1, -200, 1, -200)
+local POS_BIG       = UDim2.new(0.5, -200, 0.5, -220)
+
+-- MAIN FRAME
+local MapFrame = Instance.new("Frame", ScreenGui)
+MapFrame.Size = SIZE_SMALL
+MapFrame.Position = POS_SMALL
+MapFrame.BackgroundColor3 = Color3.fromRGB(4, 10, 22)
+MapFrame.BackgroundTransparency = 0.15
+MapFrame.Active = true
+MapFrame.ClipsDescendants = true
+
+Instance.new("UICorner", MapFrame).CornerRadius = UDim.new(0, 12)
+
+local MapStroke = Instance.new("UIStroke", MapFrame)
+MapStroke.Color = Color3.fromRGB(0, 200, 255)
+MapStroke.Thickness = 1.5
+
+-- TITLE BAR
+local TitleBar = Instance.new("Frame", MapFrame)
+TitleBar.Size = UDim2.new(1, 0, 0, 26)
+TitleBar.BackgroundColor3 = Color3.fromRGB(0, 25, 55)
+TitleBar.BorderSizePixel = 0
+
+Instance.new("UICorner", TitleBar)
+
+local TitleLabel = Instance.new("TextLabel", TitleBar)
+TitleLabel.Size = UDim2.new(0.6, 0, 1, 0)
+TitleLabel.Position = UDim2.new(0.04, 0, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+TitleLabel.TextSize = 10
+TitleLabel.Font = Enum.Font.Code
+TitleLabel.Text = "🗺 STELLAR v1.2.1"
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- BUTTON CONTAINER
+local ButtonContainer = Instance.new("Frame", TitleBar)
+ButtonContainer.Size = UDim2.new(0.35, 0, 1, 0)
+ButtonContainer.Position = UDim2.new(0.65, -5, 0, 0)
+ButtonContainer.BackgroundTransparency = 1
+
+local UIListLayout = Instance.new("UIListLayout", ButtonContainer)
+UIListLayout.FillDirection = Enum.FillDirection.Horizontal
+UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 4)
+
+local function createHeaderButton(text, order, color)
+    local btn = Instance.new("TextButton", ButtonContainer)
+    btn.Size = UDim2.new(0, 20, 0, 20)
+    btn.BackgroundColor3 = color or Color3.fromRGB(20, 70, 140)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.TextSize = 10
+    btn.Font = Enum.Font.Code
+    btn.Text = text
+    btn.LayoutOrder = order
+    Instance.new("UICorner", btn)
+    return btn
+end
+
+local MinimizeBtn = createHeaderButton("—", 1, Color3.fromRGB(40, 50, 70))
+local ExpandBtn = createHeaderButton("⛶", 2, Color3.fromRGB(20, 70, 140))
+
+-- DRAG SYSTEM
+local dragToggle = false
+local dragStart = nil
+local startPos = nil
+
+local function updateInput(input)
+    local delta = input.Position - dragStart
+    local position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    TweenService:Create(MapFrame, TweenInfo.new(0.1, Enum.EasingStyle.OutQuad), {Position = position}):Play()
+end
+
+TitleBar.InputBegan:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and UserInputService:GetFocusedTextBox() == nil then
+        dragToggle = true
+        dragStart = input.Position
+        startPos = MapFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragToggle = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragToggle then
+        updateInput(input)
+    end
+end)
+
+-- MAP CONTENT
+local MapContent = Instance.new("Frame", MapFrame)
+MapContent.Size = UDim2.new(1, 0, 1, -26)
+MapContent.Position = UDim2.new(0, 0, 0, 26)
+MapContent.BackgroundTransparency = 1
+MapContent.ClipsDescendants = true
+
+-- GRID LINES
+local function makeGrid(parent)
+    for _, child in pairs(parent:GetChildren()) do
+        if child.Name == "GridLine" then child:Destroy() end
+    end
+    for i = 1, 3 do
+        for _, isH in pairs({true, false}) do
+            local line = Instance.new("Frame", parent)
+            line.Name = "GridLine"
+            line.BorderSizePixel = 0
+            line.BackgroundColor3 = Color3.fromRGB(0, 100, 140)
+            line.BackgroundTransparency = 0.8
+            if isH then
+                line.Size = UDim2.new(1, 0, 0, 1)
+                line.Position = UDim2.new(0, 0, i/4, 0)
+            else
+                line.Size = UDim2.new(0, 1, 1, 0)
+                line.Position = UDim2.new(i/4, 0, 0, 0)
+            end
+        end
+    end
+end
+makeGrid(MapContent)
+
+-- COMPASS
+local Compass = Instance.new("TextLabel", MapContent)
+Compass.Size = UDim2.new(0, 22, 0, 16)
+Compass.Position = UDim2.new(1, -26, 0, 4)
+Compass.BackgroundTransparency = 1
+Compass.TextColor3 = Color3.fromRGB(255, 90, 90)
+Compass.TextSize = 8
+Compass.Font = Enum.Font.Code
+Compass.Text = "N↑"
+Compass.ZIndex = 10
+
+-- ZOOM CONTROLS
+local ZoomContainer = Instance.new("Frame", MapContent)
+ZoomContainer.Size = UDim2.new(0, 20, 0, 44)
+ZoomContainer.Position = UDim2.new(0, 6, 0, 6)
+ZoomContainer.BackgroundTransparency = 1
+ZoomContainer.Active = true
+ZoomContainer.ZIndex = 10
+
+local ZoomInBtn = Instance.new("TextButton", ZoomContainer)
+ZoomInBtn.Size = UDim2.new(1, 0, 0, 20)
+ZoomInBtn.BackgroundColor3 = Color3.fromRGB(0, 25, 55)
+ZoomInBtn.TextColor3 = Color3.fromRGB(0, 200, 255)
+ZoomInBtn.Text = "+"
+ZoomInBtn.TextSize = 12
+ZoomInBtn.Font = Enum.Font.Code
+ZoomInBtn.ZIndex = 10
+ZoomInBtn.Active = true
+Instance.new("UICorner", ZoomInBtn)
+
+local ZoomOutBtn = Instance.new("TextButton", ZoomContainer)
+ZoomOutBtn.Size = UDim2.new(1, 0, 0, 20)
+ZoomOutBtn.Position = UDim2.new(0, 0, 0, 24)
+ZoomOutBtn.BackgroundColor3 = Color3.fromRGB(0, 25, 55)
+ZoomOutBtn.TextColor3 = Color3.fromRGB(0, 200, 255)
+ZoomOutBtn.Text = "-"
+ZoomOutBtn.TextSize = 12
+ZoomOutBtn.Font = Enum.Font.Code
+ZoomOutBtn.ZIndex = 10
+ZoomOutBtn.Active = true
+Instance.new("UICorner", ZoomOutBtn)
+
+ZoomInBtn.MouseButton1Click:Connect(function()
+    currentZoom = math.min(15, currentZoom + 1)
+end)
+ZoomOutBtn.MouseButton1Click:Connect(function()
+    currentZoom = math.max(2, currentZoom - 1)
+end)
+
+-- PIN VISUAL ELEMENT
+local PinElement = Instance.new("TextLabel", MapContent)
+PinElement.Size = UDim2.new(0, 24, 0, 24)
+PinElement.AnchorPoint = Vector2.new(0.5, 0.8)
+PinElement.BackgroundTransparency = 1
+PinElement.Text = "📍"
+PinElement.TextSize = 18
+PinElement.ZIndex = 8
+PinElement.Visible = false
+
+-- BOTTOM CONTROL PANEL
+local ControlPanel = Instance.new("Frame", MapFrame)
+ControlPanel.Size = UDim2.new(1, -16, 0, 66)
+ControlPanel.Position = UDim2.new(0, 8, 1, -74)
+ControlPanel.BackgroundColor3 = Color3.fromRGB(0, 15, 35)
+ControlPanel.BackgroundTransparency = 0.3
+ControlPanel.Visible = false
+
+Instance.new("UICorner", ControlPanel).CornerRadius = UDim.new(0, 8)
+
+local PinInfoLabel = Instance.new("TextLabel", ControlPanel)
+PinInfoLabel.Size = UDim2.new(0.5, 0, 0, 26)
+PinInfoLabel.Position = UDim2.new(0.04, 0, 0, 4)
+PinInfoLabel.BackgroundTransparency = 1
+PinInfoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+PinInfoLabel.TextSize = 9
+PinInfoLabel.Font = Enum.Font.Code
+PinInfoLabel.Text = "ยังไม่มีการปักหมุด"
+PinInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local FlyToPinBtn = Instance.new("TextButton", ControlPanel)
+FlyToPinBtn.Size = UDim2.new(0.2, 0, 0, 22)
+FlyToPinBtn.Position = UDim2.new(0.55, 0, 0, 6)
+FlyToPinBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 100)
+FlyToPinBtn.TextColor3 = Color3.new(1, 1, 1)
+FlyToPinBtn.TextSize = 9
+FlyToPinBtn.Font = Enum.Font.Code
+FlyToPinBtn.Text = "บินไป"
+Instance.new("UICorner", FlyToPinBtn)
+
+local ClearPinBtn = Instance.new("TextButton", ControlPanel)
+ClearPinBtn.Size = UDim2.new(0.2, 0, 0, 22)
+ClearPinBtn.Position = UDim2.new(0.77, 0, 0, 6)
+ClearPinBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+ClearPinBtn.TextColor3 = Color3.new(1, 1, 1)
+ClearPinBtn.TextSize = 9
+ClearPinBtn.Font = Enum.Font.Code
+ClearPinBtn.Text = "ล้างหมุด"
+Instance.new("UICorner", ClearPinBtn)
+
+-- WAYPOINT MANAGER SYSTEM
+local WaypointInput = Instance.new("TextBox", ControlPanel)
+WaypointInput.Size = UDim2.new(0.48, 0, 0, 22)
+WaypointInput.Position = UDim2.new(0.04, 0, 0, 36)
+WaypointInput.BackgroundColor3 = Color3.fromRGB(10, 30, 60)
+WaypointInput.TextColor3 = Color3.new(1, 1, 1)
+WaypointInput.TextSize = 9
+WaypointInput.Font = Enum.Font.Code
+WaypointInput.PlaceholderText = "[ ตั้งชื่อจุดเซฟที่นี่ ]"
+WaypointInput.Text = ""
+Instance.new("UICorner", WaypointInput)
+
+local SaveWpBtn = Instance.new("TextButton", ControlPanel)
+SaveWpBtn.Size = UDim2.new(0.2, 0, 0, 22)
+SaveWpBtn.Position = UDim2.new(0.55, 0, 0, 36)
+SaveWpBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+SaveWpBtn.TextColor3 = Color3.new(1, 1, 1)
+SaveWpBtn.TextSize = 9
+SaveWpBtn.Font = Enum.Font.Code
+SaveWpBtn.Text = "เซฟพิกัด"
+Instance.new("UICorner", SaveWpBtn)
+
+local LoadWpBtn = Instance.new("TextButton", ControlPanel)
+LoadWpBtn.Size = UDim2.new(0.2, 0, 0, 22)
+LoadWpBtn.Position = UDim2.new(0.77, 0, 0, 36)
+LoadWpBtn.BackgroundColor3 = Color3.fromRGB(140, 90, 20)
+LoadWpBtn.TextColor3 = Color3.new(1, 1, 1)
+LoadWpBtn.TextSize = 9
+LoadWpBtn.Font = Enum.Font.Code
+LoadWpBtn.Text = "โหลดจุด"
+Instance.new("UICorner", LoadWpBtn)
+
+-- WAYPOINT SELECTION MENU
+local WpListMenu = Instance.new("Frame", ScreenGui)
+WpListMenu.Size = UDim2.new(0, 160, 0, 150)
+WpListMenu.BackgroundColor3 = Color3.fromRGB(5, 15, 30)
+WpListMenu.Visible = false
+WpListMenu.Active = true
+WpListMenu.ZIndex = 20
+Instance.new("UICorner", WpListMenu).CornerRadius = UDim.new(0, 6)
+local WpStroke = Instance.new("UIStroke", WpListMenu)
+WpStroke.Color = Color3.fromRGB(0, 200, 255)
+
+local WpScroll = Instance.new("ScrollingFrame", WpListMenu)
+WpScroll.Size = UDim2.new(1, -10, 1, -10)
+WpScroll.Position = UDim2.new(0, 5, 0, 5)
+WpScroll.BackgroundTransparency = 1
+WpScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+WpScroll.ScrollBarThickness = 4
+WpScroll.ZIndex = 20
+
+local WpListLayout = Instance.new("UIListLayout", WpScroll)
+WpListLayout.Padding = UDim.new(0, 4)
+
+-- PLAYER QUICK MENU
+local PlayerMenu = Instance.new("Frame", ScreenGui)
+PlayerMenu.Size = UDim2.new(0, 110, 0, 55)
+PlayerMenu.BackgroundColor3 = Color3.fromRGB(5, 15, 30)
+PlayerMenu.Visible = false
+PlayerMenu.Active = true
+PlayerMenu.ZIndex = 15
+Instance.new("UICorner", PlayerMenu).CornerRadius = UDim.new(0, 6)
+local MenuStroke = Instance.new("UIStroke", PlayerMenu)
+MenuStroke.Color = Color3.fromRGB(0, 200, 255)
+
+local SelectedPlayer = nil
+local MenuTitle = Instance.new("TextLabel", PlayerMenu)
+MenuTitle.Size = UDim2.new(1, 0, 0, 22)
+MenuTitle.BackgroundTransparency = 1
+MenuTitle.TextColor3 = Color3.fromRGB(0, 200, 255)
+MenuTitle.TextSize = 8
+MenuTitle.Font = Enum.Font.Code
+MenuTitle.Text = "ชื่อผู้เล่น"
+
+local FlyToPlayerBtn = Instance.new("TextButton", PlayerMenu)
+FlyToPlayerBtn.Size = UDim2.new(0.9, 0, 0, 25)
+FlyToPlayerBtn.Position = UDim2.new(0.05, 0, 0, 25)
+FlyToPlayerBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+FlyToPlayerBtn.TextColor3 = Color3.new(1, 1, 1)
+FlyToPlayerBtn.TextSize = 9
+FlyToPlayerBtn.Font = Enum.Font.Code
+FlyToPlayerBtn.Text = "บินไปหา (Fly-To)"
+Instance.new("UICorner", FlyToPlayerBtn)
+
+-- MINIMIZE FUNCTIONALITY
+MinimizeBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    PlayerMenu.Visible = false
+    WpListMenu.Visible = false
+    
+    if minimized then
+        MinimizeBtn.Text = "+"
+        MapContent.Visible = false
+        ControlPanel.Visible = false
+        TweenService:Create(MapFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = SIZE_MINIMIZED}):Play()
+    else
+        MinimizeBtn.Text = "—"
+        MapContent.Visible = true
+        if expanded then
+            ControlPanel.Visible = true
+            TweenService:Create(MapFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = SIZE_BIG}):Play()
+        else
+            TweenService:Create(MapFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = SIZE_SMALL}):Play()
+        end
+    end
+end)
+
+-- EXPAND FUNCTIONALITY
+ExpandBtn.MouseButton1Click:Connect(function()
+    if minimized then return end
+    expanded = not expanded
+    PlayerMenu.Visible = false
+    WpListMenu.Visible = false
+
+    local targetSize = expanded and SIZE_BIG or SIZE_SMALL
+    local targetPos = expanded and POS_BIG or POS_SMALL
+    
+    if expanded then
+        MapContent.Size = UDim2.new(1, 0, 1, -100)
+        ControlPanel.Visible = true
+    else
+        MapContent.Size = UDim2.new(1, 0, 1, -26)
+        ControlPanel.Visible = false
+    end
+
+    TweenService:Create(MapFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+        Size = targetSize,
+        Position = targetPos
+    }):Play()
+end)
+
+-- PIN SYSTEM
+MapContent.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local mousePos = input.Position
+        local zoomMin = ZoomContainer.AbsolutePosition
+        local zoomMax = ZoomContainer.AbsolutePosition + ZoomContainer.AbsoluteSize
+        if mousePos.X >= zoomMin.X and mousePos.X <= zoomMax.X and mousePos.Y >= zoomMin.Y and mousePos.Y <= zoomMax.Y then return end
+        
+        local compassMin = Compass.AbsolutePosition
+        local compassMax = Compass.AbsolutePosition + Compass.AbsoluteSize
+        if mousePos.X >= compassMin.X and mousePos.X <= compassMax.X and mousePos.Y >= compassMin.Y and mousePos.Y <= compassMax.Y then return end
+
+        local localCharacter = LocalPlayer.Character
+        local localRoot = localCharacter and localCharacter:FindFirstChild("HumanoidRootPart")
+        if not localRoot then return end
+
+        local contentPos = MapContent.AbsolutePosition
+        local contentSize = MapContent.AbsoluteSize
+        local relativeX = mousePos.X - contentPos.X
+        local relativeY = mousePos.Y - contentPos.Y
+        
+        if relativeX >= 0 and relativeX <= contentSize.X and relativeY >= 0 and relativeY <= contentSize.Y then
+            local centerX = contentSize.X / 2
+            local centerY = contentSize.Y / 2
+            
+            local diffX = (relativeX - centerX) / (currentZoom / 10)
+            local diffZ = (relativeY - centerY) / (currentZoom / 10)
+            
+            local localPos = localRoot.Position
+            local targetWorldX = localPos.X + diffX
+            local targetWorldZ = localPos.Z + diffZ
+            
+            local raycastParams = RaycastParams.new()
+            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+            raycastParams.FilterDescendantsInstances = {localCharacter}
+            local raycastResult = workspace:Raycast(Vector3.new(targetWorldX, 1000, targetWorldZ), Vector3.new(0, -2000, 0), raycastParams)
+            local targetWorldY = raycastResult and raycastResult.Position.Y or localPos.Y
+            
+            activePinPos = Vector3.new(targetWorldX, targetWorldY, targetWorldZ)
+            PinElement.Visible = true
+        end
+    end
+end)
+
+local function clearPin()
+    activePinPos = nil
+    PinElement.Visible = false
+    PinInfoLabel.Text = "ยังไม่มีการปักหมุด"
+end
+ClearPinBtn.MouseButton1Click:Connect(clearPin)
+
+-- TELEPORT UTILITY
+local function teleportTo(position)
+    local character = LocalPlayer.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if root and position then
+        root.CFrame = CFrame.new(position + Vector3.new(0, 4, 0))
+    end
+end
+
+FlyToPinBtn.MouseButton1Click:Connect(function()
+    if activePinPos then teleportTo(activePinPos) end
+end)
+
+-- SAVE WAYPOINT
+SaveWpBtn.MouseButton1Click:Connect(function()
+    local name = WaypointInput.Text ~= "" and WaypointInput.Text or "จุดพิกัด " .. (#savedWaypoints + 1)
+    local localCharacter = LocalPlayer.Character
+    local localRoot = localCharacter and localCharacter:FindFirstChild("HumanoidRootPart")
+    
+    if localRoot then
+        table.insert(savedWaypoints, {Name = name, Position = localRoot.Position})
+        WaypointInput.Text = ""
+        
+        local oldPlaceholder = WaypointInput.PlaceholderText
+        WaypointInput.PlaceholderText = "✓ บันทึกสำเร็จแล้ว!"
+        task.wait(1.5)
+        WaypointInput.PlaceholderText = oldPlaceholder
+    end
+end)
+
+-- UPDATE WAYPOINT SCROLL MENU
+local function updateWpList()
+    for _, child in pairs(WpScroll:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    
+    for i, wp in pairs(savedWaypoints) do
+        local wpBtn = Instance.new("TextButton", WpScroll)
+        wpBtn.Size = UDim2.new(1, -10, 0, 20)
+        wpBtn.BackgroundColor3 = Color3.fromRGB(15, 30, 60)
+        wpBtn.TextColor3 = Color3.fromRGB(0, 200, 255)
+        wpBtn.TextSize = 9
+        wpBtn.Font = Enum.Font.Code
+        wpBtn.Text = wp.Name
+        wpBtn.Active = true
+        Instance.new("UICorner", wpBtn)
+        
+        wpBtn.MouseButton1Click:Connect(function()
+            teleportTo(wp.Position)
+            WpListMenu.Visible = false
+        end)
+    end
+    WpScroll.CanvasSize = UDim2.new(0, 0, 0, #savedWaypoints * 24)
+end
+
+LoadWpBtn.MouseButton1Click:Connect(function()
+    WpListMenu.Visible = not WpListMenu.Visible
+    if WpListMenu.Visible then
+        updateWpList()
+        WpListMenu.Position = UDim2.new(0, MapFrame.AbsolutePosition.X - 170, 0, MapFrame.AbsolutePosition.Y + 50)
+    end
+end)
+
+-- PLAYER INTERACTION
+FlyToPlayerBtn.MouseButton1Click:Connect(function()
+    if SelectedPlayer and SelectedPlayer.Character then
+        local root = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            teleportTo(root.Position)
+            PlayerMenu.Visible = false
+        end
+    end
+end)
+
+-- CLOSE SUBMENUS
+UserInputService.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local function isOutside(frame, clickPos)
+            if not frame.Visible then return true end
+            local pos = frame.AbsolutePosition
+            local size = frame.AbsoluteSize
+            return clickPos.X < pos.X or clickPos.X > pos.X + size.X or clickPos.Y < pos.Y or clickPos.Y > pos.Y + size.Y
+        end
+        local clickPos = input.Position
+        if isOutside(PlayerMenu, clickPos) then PlayerMenu.Visible = false end
+        if isOutside(WpListMenu, clickPos) then WpListMenu.Visible = false end
+    end
+end)
+
+-- PLAYER DOTS GENERATION
+local function createPlayerDot(player)
+    if playerDots[player] then return end
+
+    local dot = Instance.new("ImageButton", MapContent)
+    dot.Size = UDim2.new(0, 18, 0, 18)
+    dot.AnchorPoint = Vector2.new(0.5, 0.5)
+    dot.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    dot.BorderSizePixel = 0
+    dot.ZIndex = 5
+    dot.Active = true
+
+    local corner = Instance.new("UICorner", dot)
+    corner.CornerRadius = UDim.new(1, 0)
+
+    local stroke = Instance.new("UIStroke", dot)
+    stroke.Thickness = 1.5
+
+    task.spawn(function()
+        pcall(function()
+            local userId = player.UserId
+            local thumbType = Enum.ThumbnailType.HeadShot
+            local thumbSize = Enum.ThumbnailSize.Size48x48
+            local content, isReady = Players:GetUserThumbnailAsync(userId, thumbType, thumbSize)
+            if isReady then dot.Image = content end
+        end)
+    end)
+
+    if player == LocalPlayer then
+        dot.Image = "rbxassetid://10844726217"
+        dot.ImageColor3 = Color3.fromRGB(0, 255, 100)
+        stroke.Color = Color3.fromRGB(0, 255, 100)
+        dot.ZIndex = 7
+    else
+        stroke.Color = Color3.fromRGB(255, 200, 0)
+        dot.MouseButton1Click:Connect(function()
+            SelectedPlayer = player
+            MenuTitle.Text = player.DisplayName
+            PlayerMenu.Position = UDim2.new(0, dot.AbsolutePosition.X - 45, 0, dot.AbsolutePosition.Y - 60)
+            PlayerMenu.Visible = true
+        end)
+    end
+
+    playerDots[player] = dot
+end
+
+Players.PlayerAdded:Connect(createPlayerDot)
+Players.PlayerRemoving:Connect(function(player)
+    if playerDots[player] then
+        playerDots[player]:Destroy()
+        playerDots[player] = nil
+    end
+end)
+
+for _, p in pairs(Players:GetPlayers()) do createPlayerDot(p) end
+
+-- MAIN UPDATE LOOP
+RunService.RenderStepped:Connect(function()
+    local localCharacter = LocalPlayer.Character
+    local localRoot = localCharacter and localCharacter:FindFirstChild("HumanoidRootPart")
+    if not localRoot then return end
+
+    local localPos = localRoot.Position
+
+    local lookVector = Camera.CFrame.LookVector
+    local angle = math.atan2(lookVector.X, lookVector.Z) + math.pi
+    Compass.Rotation = math.deg(angle)
+
+    local mapWidth = MapContent.AbsoluteSize.X
+    local mapHeight = MapContent.AbsoluteSize.Y
+    local centerX = mapWidth / 2
+    local centerY = mapHeight / 2
+    local radius = (mapWidth / 2) - 10
+
+    if activePinPos then
+        local diffX = activePinPos.X - localPos.X
+        local diffZ = activePinPos.Z - localPos.Z
+
+        local uiX = centerX + (diffX * (currentZoom / 10))
+        local uiY = centerY + (diffZ * (currentZoom / 10))
+
+        local dx = uiX - centerX
+        local dy = uiY - centerY
+        local dist = math.sqrt(dx*dx + dy*dy)
+
+        if dist > radius then
+            local angleToDot = math.atan2(dy, dx)
+            uiX = centerX + math.cos(angleToDot) * radius
+            uiY = centerY + math.sin(angleToDot) * radius
+        end
+
+        PinElement.Position = UDim2.new(0, uiX, 0, uiY)
+        local realDistance = math.round((Vector3.new(activePinPos.X, 0, activePinPos.Z) - Vector3.new(localPos.X, 0, localPos.Z)).Magnitude)
+        PinInfoLabel.Text = string.format("📍 ระยะห่าง: %d ม.", realDistance)
+    end
+
+    for player, dot in pairs(playerDots) do
+        local character = player.Character
+        local root = character and character:FindFirstChild("HumanoidRootPart")
+
+        if root then
+            dot.Visible = true
+            
+            local diffX = root.Position.X - localPos.X
+            local diffZ = root.Position.Z - localPos.Z
+
+            local uiX = centerX + (diffX * (currentZoom / 10))
+            local uiY = centerY + (diffZ * (currentZoom / 10))
+
+            local dx = uiX - centerX
+            local dy = uiY - centerY
+            local dist = math.sqrt(dx*dx + dy*dy)
+
+            if dist > radius then
+                local angleToDot = math.atan2(dy, dx)
+                uiX = centerX + math.cos(angleToDot) * radius
+                uiY = centerY + math.sin(angleToDot) * radius
+            end
+
+            dot.Position = UDim2.new(0, uiX, 0, uiY)
+            
+            if player == LocalPlayer then
+                local charLook = localRoot.CFrame.LookVector
+                local charAngle = math.atan2(charLook.X, charLook.Z) + math.pi
+                dot.Rotation = math.deg(charAngle) - 180
+            end
+        else
+            dot.Visible = false
+        end
+    end
+end)
