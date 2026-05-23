@@ -1,0 +1,430 @@
+```lua
+-- =====================================================================
+-- -- [[ STELLARHUB: MIRACLE RAMPAGE v3.5 - AUTO-WALK & NO-CLIP ]] --
+-- =====================================================================
+-- อัปเกรดระบบเดินออโต้พุ่งทะลุกำแพง (Auto Walk No-Clip) ดิ่งเข้าหาศัตรูไม่สนใจสิ่งกีดขวาง
+-- ฟีเจอร์: ล็อกเป้าอัตโนมัติ, ยิงอัตโนมัติ, เดินออโต้ทะลุกำแพง 100%, แสดงออร่าล็อกเป้า
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+
+-- ตรวจสอบและเคลียร์ UI เก่าที่อาจจะยังค้างอยู่
+if CoreGui:FindFirstChild("StellarMiracle_Rampage_V3_5") then 
+    CoreGui:FindFirstChild("StellarMiracle_Rampage_V3_5"):Destroy() 
+end
+
+-- ปลดล็อก FPS เพื่อความลื่นไหลสูงสุด
+pcall(function() if setfpscap then setfpscap(120) end end)
+
+-- ตั้งค่าระบบตั้งต้น (Config)
+local Config = {
+    BotEnabled = true,
+    AutoWalk = true,           -- ระบบเดินตามเป้าหมายออโต้ (ทะลุกำแพง)
+    AttackRange = 35,          -- ระยะล็อกยิงออโต้
+    SearchRange = 150,         -- ระยะในการสแกนและเดินเข้าหาศัตรู (กว้างขึ้นเพื่อให้ระบบเดินออโต้ทำงานได้จากระยะไกล)
+    TargetPart = "HumanoidRootPart", 
+    TeamCheck = false,         
+    ESPEnabled = true          
+}
+
+-- ตัวแปรเก็บเป้าหมายปัจจุบัน
+local CurrentTarget = nil
+
+-- สร้างเอฟเฟกต์ Highlight (ESP) รอบเป้าหมาย
+local TargetHighlight = Instance.new("Highlight")
+TargetHighlight.FillColor = Color3.fromRGB(180, 0, 255)
+TargetHighlight.FillTransparency = 0.4
+TargetHighlight.OutlineColor = Color3.fromRGB(0, 220, 255)
+TargetHighlight.OutlineTransparency = 0.1
+TargetHighlight.Enabled = false
+
+-- ==========================================
+-- 🎯 ระบบสแกนหาเป้าหมายและคัดกรองแบบอัตโนมัติ
+-- ==========================================
+local function getClosestTarget()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+    local myChar = LocalPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
+            local targetChar = player.Character
+            local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
+            
+            if targetHRP and targetChar.Humanoid.Health > 0 then
+                local isSameTeam = (Config.TeamCheck and player.Team == LocalPlayer.Team)
+                
+                if not isSameTeam then
+                    local distance = (myChar.HumanoidRootPart.Position - targetHRP.Position).Magnitude
+                    -- ใช้ขอบเขต SearchRange ในการค้นหาเพื่อเดินเข้าหา
+                    if distance < shortestDistance and distance <= Config.SearchRange then
+                        shortestDistance = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- ฟังก์ชันปิดกล่องชนของร่างกายผู้เล่นชั่วคราว (No-Clip) เพื่อให้ทะลุกำแพงได้ไม่ติดขัด
+local function enableNoClip()
+    local myChar = LocalPlayer.Character
+    if myChar then
+        for _, part in pairs(myChar:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+end
+
+-- ===================================================
+-- 🔄 ลูปรันระบบโจมตี ล็อกเป้า และเดินออโต้ทะลุกำแพง
+-- ===================================================
+RunService.Stepped:Connect(function()
+    if Config.BotEnabled then
+        local target = getClosestTarget()
+        CurrentTarget = target
+        
+        local myChar = LocalPlayer.Character
+        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        
+        if target and target.Character and target.Character:FindFirstChild(Config.TargetPart) and myHRP then
+            local targetHRP = target.Character:FindFirstChild("HumanoidRootPart")
+            local aimPart = target.Character[Config.TargetPart]
+            
+            -- [1] หมุนหน้ากล้องล็อกเป้าทันที
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPart.Position)
+            
+            -- คำนวณระยะทางจริงในขณะนั้น
+            local currentDistance = (myHRP.Position - targetHRP.Position).Magnitude
+            
+            -- [2] ระบบ Auto Walk (สไลด์ตัวเข้าหาเป้าหมายทะลุกำแพง)
+            if Config.AutoWalk then
+                enableNoClip() -- ปิดกล่องชนตัวเราเพื่อไม่ให้ติดกำแพง
+                
+                -- เคลื่อนที่เข้าหาเป้าหมายแบบสมูท (เว้นระยะห่างไว้ 4 Studs เพื่อความเนียนในการโจมตีระยะประชิด)
+                local direction = (targetHRP.Position - myHRP.Position).Unit
+                local destination = targetHRP.Position - (direction * 4)
+                
+                -- ใช้การขยับ CFrame โดยตรงเพื่อทะลุสิ่งกีดขวางทั้งหมด
+                myHRP.CFrame = CFrame.new(myHRP.Position, targetHRP.Position):Lerp(CFrame.new(destination, targetHRP.Position), 0.12)
+                
+                -- รีเซ็ตค่าความเร็วป้องกันตัวละครโดนระบบฟิสิกส์ดีดออกนอกแมพ
+                myHRP.Velocity = Vector3.new(0, 0, 0)
+            end
+            
+            -- [3] ระบบยิงอัตโนมัติ (จะยิงเมื่ออยู่ในระยะโจมตี)
+            if currentDistance <= Config.AttackRange then
+                if Config.ESPEnabled then
+                    TargetHighlight.Parent = target.Character
+                    TargetHighlight.Enabled = true
+                else
+                    TargetHighlight.Enabled = false
+                end
+                
+                -- จำลองการยิง/คลิก
+                VirtualUser:Button1Down(Vector2.new(0,0), Camera.CFrame)
+                task.wait(0.01)
+                VirtualUser:Button1Up(Vector2.new(0,0), Camera.CFrame)
+            else
+                TargetHighlight.Enabled = false
+                TargetHighlight.Parent = nil
+            end
+        else
+            TargetHighlight.Enabled = false
+            TargetHighlight.Parent = nil
+        end
+    else
+        TargetHighlight.Enabled = false
+        TargetHighlight.Parent = nil
+    end
+end)
+
+-- ==========================================
+-- 💻 ฟังก์ชันระบบลากย้ายหน้าต่าง UI บนมือถือแบบสมูท
+-- ==========================================
+local function makeDraggable(frame, dragHandle)
+    local dragToggle = false
+    local dragStart, startPos
+    local handle = dragHandle or frame
+    
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragToggle = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragToggle = false end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragToggle then
+            local delta = input.Position - dragStart
+            local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+            local targetPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            TweenService:Create(frame, tweenInfo, {Position = targetPos}):Play()
+        end
+    end)
+end
+
+-- ==========================================
+-- 🎨 สร้างหน้าต่าง UI ดีไซน์ V3.5 (ขยายช่องใส่ปุ่มเพิ่ม)
+-- ==========================================
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = "StellarMiracle_Rampage_V3_5"
+ScreenGui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 260, 0, 310) -- ขยายความสูงหน้าต่างขึ้นเพื่อใส่ปุ่มใหม่
+MainFrame.Position = UDim2.new(0.5, -130, 0.4, -155)
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 9, 20)
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+makeDraggable(MainFrame)
+
+local MainCorner = Instance.new("UICorner", MainFrame)
+MainCorner.CornerRadius = UDim.new(0, 12)
+
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Thickness = 2
+MainStroke.Color = Color3.fromRGB(180, 0, 255)
+
+local StrokeGradient = Instance.new("UIGradient", MainStroke)
+StrokeGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 0, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 220, 255))
+})
+
+local TitleBar = Instance.new("Frame", MainFrame)
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundTransparency = 1
+
+local TitleLabel = Instance.new("TextLabel", TitleBar)
+TitleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+TitleLabel.Position = UDim2.new(0, 14, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "MIRACLE RAMPAGE V3.5"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Font = Enum.Font.Code
+TitleLabel.TextSize = 13
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local HideBtn = Instance.new("TextButton", TitleBar)
+HideBtn.Size = UDim2.new(0, 26, 0, 26)
+HideBtn.Position = UDim2.new(1, -36, 0.5, -13)
+HideBtn.BackgroundColor3 = Color3.fromRGB(25, 18, 40)
+HideBtn.Text = "-"
+HideBtn.TextColor3 = Color3.fromRGB(0, 220, 255)
+HideBtn.Font = Enum.Font.Code
+HideBtn.TextSize = 16
+Instance.new("UICorner", HideBtn).CornerRadius = UDim.new(0, 6)
+
+-- 🔵 ปุ่มย่อรูปทรงกลมขนาดพกพา "8X" (ลากย้ายได้อิสระ)
+local FloatBtn = Instance.new("TextButton", ScreenGui)
+FloatBtn.Size = UDim2.new(0, 55, 0, 55)
+FloatBtn.Position = UDim2.new(0.1, 0, 0.2, 0)
+FloatBtn.BackgroundColor3 = Color3.fromRGB(12, 9, 20)
+FloatBtn.BackgroundTransparency = 0.1
+FloatBtn.Text = "8X"
+FloatBtn.TextColor3 = Color3.fromRGB(0, 220, 255)
+FloatBtn.Font = Enum.Font.Code
+FloatBtn.TextSize = 18
+FloatBtn.Visible = false
+Instance.new("UICorner", FloatBtn).CornerRadius = UDim.new(1, 0)
+
+local FloatStroke = Instance.new("UIStroke", FloatBtn)
+FloatStroke.Thickness = 2
+FloatStroke.Color = Color3.fromRGB(180, 0, 255)
+local FloatGradient = Instance.new("UIGradient", FloatStroke)
+FloatGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 0, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 220, 255))
+})
+makeDraggable(FloatBtn)
+
+HideBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    FloatBtn.Visible = true
+end)
+FloatBtn.MouseButton1Click:Connect(function()
+    FloatBtn.Visible = false
+    MainFrame.Visible = true
+end)
+
+-- ==========================================
+-- ⚙️ ปุ่มและแถบฟังก์ชันการใช้งานต่างๆ ใน UI
+-- ==========================================
+
+-- 1. ปุ่มหลักสลับสถานะการเปิด/ปิดระบบการทำงานทั้งหมด
+local ToggleBtn = Instance.new("TextButton", MainFrame)
+ToggleBtn.Size = UDim2.new(1, -24, 0, 42)
+ToggleBtn.Position = UDim2.new(0, 12, 0, 45)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 0, 255)
+ToggleBtn.Text = "SYSTEM AUTO BOT: ACTIVE"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.Font = Enum.Font.SourceSansBold
+ToggleBtn.TextSize = 14
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 8)
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    Config.BotEnabled = not Config.BotEnabled
+    local endColor = Config.BotEnabled and Color3.fromRGB(180, 0, 255) or Color3.fromRGB(40, 32, 60)
+    local targetText = Config.BotEnabled and "SYSTEM AUTO BOT: ACTIVE" or "SYSTEM AUTO BOT: INACTIVE"
+    TweenService:Create(ToggleBtn, TweenInfo.new(0.3), {BackgroundColor3 = endColor}):Play()
+    ToggleBtn.Text = targetText
+end)
+
+-- ⭐ 2. ปุ่มเปิด/ปิดระบบเดินออโต้ทะลุกำแพง (Auto Walk) - ฟีเจอร์ใหม่!
+local AutoWalkBtn = Instance.new("TextButton", MainFrame)
+AutoWalkBtn.Size = UDim2.new(1, -24, 0, 38)
+AutoWalkBtn.Position = UDim2.new(0, 12, 0, 95)
+AutoWalkBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+AutoWalkBtn.Text = "AUTO WALK: ACTIVE (NO-CLIP)"
+AutoWalkBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoWalkBtn.Font = Enum.Font.SourceSansBold
+AutoWalkBtn.TextSize = 13
+Instance.new("UICorner", AutoWalkBtn).CornerRadius = UDim.new(0, 6)
+
+AutoWalkBtn.MouseButton1Click:Connect(function()
+    Config.AutoWalk = not Config.AutoWalk
+    local endColor = Config.AutoWalk and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(40, 32, 60)
+    local targetText = Config.AutoWalk and "AUTO WALK: ACTIVE (NO-CLIP)" or "AUTO WALK: DISABLED"
+    TweenService:Create(AutoWalkBtn, TweenInfo.new(0.3), {BackgroundColor3 = endColor}):Play()
+    AutoWalkBtn.Text = targetText
+end)
+
+-- 3. ปุ่มเลือกล็อกตำแหน่งร่างกาย
+local PartBtn = Instance.new("TextButton", MainFrame)
+PartBtn.Size = UDim2.new(1, -24, 0, 36)
+PartBtn.Position = UDim2.new(0, 12, 0, 140)
+PartBtn.BackgroundColor3 = Color3.fromRGB(25, 18, 40)
+PartBtn.Text = "TARGET PART: BODY (HRP)"
+PartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PartBtn.Font = Enum.Font.SourceSans
+PartBtn.TextSize = 13
+Instance.new("UICorner", PartBtn).CornerRadius = UDim.new(0, 6)
+
+PartBtn.MouseButton1Click:Connect(function()
+    if Config.TargetPart == "HumanoidRootPart" then
+        Config.TargetPart = "Head"
+        PartBtn.Text = "TARGET PART: HEAD"
+        PartBtn.TextColor3 = Color3.fromRGB(0, 220, 255)
+    else
+        Config.TargetPart = "HumanoidRootPart"
+        PartBtn.Text = "TARGET PART: BODY (HRP)"
+        PartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
+end)
+
+-- 4. ปุ่มเปิด/ปิดตรวจสอบทีม
+local TeamBtn = Instance.new("TextButton", MainFrame)
+TeamBtn.Size = UDim2.new(1, -24, 0, 36)
+TeamBtn.Position = UDim2.new(0, 12, 0, 182)
+TeamBtn.BackgroundColor3 = Color3.fromRGB(25, 18, 40)
+TeamBtn.Text = "TEAM CHECK: DISABLED"
+TeamBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+TeamBtn.Font = Enum.Font.SourceSans
+TeamBtn.TextSize = 13
+Instance.new("UICorner", TeamBtn).CornerRadius = UDim.new(0, 6)
+
+TeamBtn.MouseButton1Click:Connect(function()
+    Config.TeamCheck = not Config.TeamCheck
+    TeamBtn.Text = Config.TeamCheck and "TEAM CHECK: ENABLED" or "TEAM CHECK: DISABLED"
+    TeamBtn.TextColor3 = Config.TeamCheck and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+end)
+
+-- 5. แถบควบคุมระยะทางการสแกนยิง (Attack Range Control)
+local RangeFrame = Instance.new("Frame", MainFrame)
+RangeFrame.Size = UDim2.new(1, -24, 0, 40)
+RangeFrame.Position = UDim2.new(0, 12, 0, 226)
+RangeFrame.BackgroundTransparency = 1
+
+local RangeTitle = Instance.new("TextLabel", RangeFrame)
+RangeTitle.Size = UDim2.new(0.5, 0, 1, 0)
+RangeTitle.BackgroundTransparency = 1
+RangeTitle.Text = "Atk Range: " .. tostring(Config.AttackRange) .. " Studs"
+RangeTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+RangeTitle.Font = Enum.Font.SourceSans
+RangeTitle.TextSize = 13
+RangeTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+local MinusBtn = Instance.new("TextButton", RangeFrame)
+MinusBtn.Size = UDim2.new(0, 30, 0, 30)
+MinusBtn.Position = UDim2.new(0.7, -15, 0.5, -15)
+MinusBtn.BackgroundColor3 = Color3.fromRGB(35, 28, 55)
+MinusBtn.Text = "-"
+MinusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinusBtn.Font = Enum.Font.Code
+MinusBtn.TextSize = 14
+Instance.new("UICorner", MinusBtn).CornerRadius = UDim.new(0, 6)
+
+local PlusBtn = Instance.new("TextButton", RangeFrame)
+PlusBtn.Size = UDim2.new(0, 30, 0, 30)
+PlusBtn.Position = UDim2.new(0.9, -15, 0.5, -15)
+PlusBtn.BackgroundColor3 = Color3.fromRGB(35, 28, 55)
+PlusBtn.Text = "+"
+PlusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlusBtn.Font = Enum.Font.Code
+PlusBtn.TextSize = 14
+Instance.new("UICorner", PlusBtn).CornerRadius = UDim.new(0, 6)
+
+MinusBtn.MouseButton1Click:Connect(function()
+    if Config.AttackRange > 10 then
+        Config.AttackRange = Config.AttackRange - 5
+        RangeTitle.Text = "Atk Range: " .. tostring(Config.AttackRange) .. " Studs"
+    end
+end)
+
+PlusBtn.MouseButton1Click:Connect(function()
+    if Config.AttackRange < 150 then
+        Config.AttackRange = Config.AttackRange + 5
+        RangeTitle.Text = "Atk Range: " .. tostring(Config.AttackRange) .. " Studs"
+    end
+end)
+
+-- แถบแสดงสถานะด้านล่างสุด
+local StatusLabel = Instance.new("TextLabel", MainFrame)
+StatusLabel.Size = UDim2.new(1, 0, 0, 30)
+StatusLabel.Position = UDim2.new(0, 0, 1, -30)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Status: Scanning targets..."
+StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+StatusLabel.Font = Enum.Font.SourceSansItalic
+StatusLabel.TextSize = 12
+
+-- ลูปอัปเดตสถานะของเป้าหมายบน UI แบบ Realtime
+task.spawn(function()
+    while task.wait(0.3) do
+        if not Config.BotEnabled then
+            StatusLabel.Text = "Status: Bot Disabled"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        elseif CurrentTarget then
+            if Config.AutoWalk then
+                StatusLabel.Text = "Chasing & Locking: " .. CurrentTarget.Name
+                StatusLabel.TextColor3 = Color3.fromRGB(0, 220, 255)
+            else
+                StatusLabel.Text = "Locking on: " .. CurrentTarget.Name
+                StatusLabel.TextColor3 = Color3.fromRGB(180, 0, 255)
+            end
+        else
+            StatusLabel.Text = "Status: Scanning targets..."
+            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+        end
+    end
+end)
+
+print("STELLARHUB: MIRACLE RAMPAGE v3.5 - WALKING & NO-CLIP MOD LOADED!")
+
+```
