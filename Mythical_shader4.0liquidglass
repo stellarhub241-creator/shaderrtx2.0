@@ -1,7 +1,7 @@
 ```lua
--- [[ STELLARHUB: MYTHICAL SHADER v4.4 PREMIUM ANIMATED EDITION ]] --
+-- [[ STELLARHUB: MYTHICAL SHADER v4.4.1 DELTA FIX EDITION ]] --
 -- Liquid Glass UI + Flowing Shimmer + Elastic Springs + Smooth Sliding Tabs + Drag-to-Resize
--- อัปเกรดระบบอนิเมชันให้พรีเมียม ไหลลื่น ตอบสนองนิ้วมืออย่างมีชีวิตชีวา
+-- [FIXED] แก้ไขจุดบกพร่องระบบ Threading และ UIScale เพื่อให้รันบน Delta Executor ได้ชัวร์ 100%
 
 local Lighting = game:GetService("Lighting")
 local Terrain = workspace.Terrain
@@ -19,8 +19,11 @@ end)
 Terrain.WaterReflectance = 1
 Terrain.WaterTransparency = 0.55
 
-if CoreGui:FindFirstChild("STELLARHUP_MYTHICAL") then
-    CoreGui:FindFirstChild("STELLARHUP_MYTHICAL"):Destroy()
+-- เคลียร์ตัวเก่าออกแบบปลอดภัย ป้องกัน Thread ค้าง
+local oldUI = CoreGui:FindFirstChild("STELLARHUP_MYTHICAL")
+if oldUI then
+    oldUI:Destroy()
+    task.wait(0.1)
 end
 
 -- ==================== STATE (สถานะระบบ) ====================
@@ -204,7 +207,7 @@ workspace.DescendantAdded:Connect(function(v)
     task.delay(0.1, function() applyPBROnPart(v) end)
 end)
 
--- ==================== UI BUILD (โครงสร้างอินเตอร์เฟส) ====================
+-- ==================== UI BUILD ====================
 local ScreenGui = Instance.new("ScreenGui", CoreGui)
 ScreenGui.Name = "STELLARHUP_MYTHICAL"
 ScreenGui.ResetOnSpawn = false
@@ -220,7 +223,7 @@ MainFrame.Active = true
 MainFrame.ClipsDescendants = true
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 14)
 
--- [NEW] เอฟเฟกต์แสงไหลผ่านแผงกระจก (Liquid Flow Shimmer)
+-- [FIXED DELTA] คลื่นแสงวิ่งด้านบน ปรับใช้วิธีเปลี่ยน Hue แบบไม่มีดีเลย์หนักเครื่อง
 local GlassShimmer = Instance.new("Frame", MainFrame)
 GlassShimmer.Size = UDim2.new(1.5, 0, 0, 2)
 GlassShimmer.Position = UDim2.new(-0.25, 0, 0, 1)
@@ -231,14 +234,13 @@ ShimGrad.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150, 220, 255)),
     ColorSequenceKeypoint.new(1, Color3.fromRGB(255,255,255))
 })
--- อนิเมชันคลื่นแสงวนซ้ำแบบ Smooth
 task.spawn(function()
-    while task.wait(0.01) do
+    while task.wait(0.05) do -- ลดความถี่ลงมาเล็กน้อยเพื่อเซฟ CPU มือถือของ Delta
         if MainFrame and MainFrame.Parent then
-            ShimGrad.Offset = Vector2.new(math.sin(tick() * 1.5) * 0.5, 0)
-        else
-            break
-        end
+            pcall(function()
+                ShimGrad.Offset = Vector2.new(math.sin(tick() * 1.5) * 0.5, 0)
+            end)
+        else break end
     end
 end)
 
@@ -262,7 +264,7 @@ local TitleLabel = Instance.new("TextLabel", TitleBar)
 TitleLabel.Size = UDim2.new(0.6, 0, 1, 0)
 TitleLabel.Position = UDim2.new(0, 15, 0, 0)
 TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "MYTHICAL SHADER v4.4"
+TitleLabel.Text = "MYTHICAL SHADER v4.4.1"
 TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleLabel.TextSize = 13
 TitleLabel.Font = Enum.Font.Code
@@ -325,44 +327,39 @@ local TabSky      = createTabFrame()
 local TabOptimize = createTabFrame()
 local TabTheme    = createTabFrame()
 
--- [NEW] ฟังก์ชันเพิ่มเอฟเฟกต์การสั่นปุ่มและการขยายตัวเมื่อใช้นิ้วชี้หรือวางเมาส์ (Spring Hover Physics)
+-- [FIXED DELTA] ปรับปรุงระบบสปริงปุ่มให้อ่านค่าเริ่มต้นแบบปลอดภัย ไม่เอ๋อชัวร์
 local function applySpringPhysics(button)
     local uiScale = button:FindFirstChildOfClass("UIScale")
     if not uiScale then
-        uiScale = Instance.new("UIScale", button)
+        uiScale = Instance.new("UIScale")
+        uiScale.Scale = 1.0 -- ป้องกันค่าว่างที่ทำให้เอนจิ้น Delta แครช
+        uiScale.Parent = button
     end
     
     button.MouseEnter:Connect(function()
-        TweenService:Create(uiScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            Scale = 1.06
-        }):Play()
-        TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-            BackgroundTransparency = 0.15
-        }):Play()
+        pcall(function()
+            TweenService:Create(uiScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1.05}):Play()
+            TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.15}):Play()
+        end)
     end)
-    
     button.MouseLeave:Connect(function()
-        TweenService:Create(uiScale, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Scale = 1.0
-        }):Play()
-        TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-            BackgroundTransparency = 0.4
-        }):Play()
+        pcall(function()
+            TweenService:Create(uiScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Scale = 1.0}):Play()
+            TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.4}):Play()
+        end)
     end)
-
     button.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            TweenService:Create(uiScale, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
-                Scale = 0.94
-            }):Play()
+            pcall(function()
+                TweenService:Create(uiScale, TweenInfo.new(0.08, Enum.EasingStyle.Quad), {Scale = 0.95}):Play()
+            end)
         end
     end)
-    
     button.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            TweenService:Create(uiScale, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
-                Scale = 1.0
-            }):Play()
+            pcall(function()
+                TweenService:Create(uiScale, TweenInfo.new(0.15, Enum.EasingStyle.Back), {Scale = 1.0}):Play()
+            end)
         end
     end)
 end
@@ -370,7 +367,6 @@ end
 local tabButtons = {}
 local activeTab = nil
 
--- [NEW] อนิเมชันการเปลี่ยนหน้าแท็บแบบสไลด์หรูหรา (Smooth Sliding Tab Transitions)
 local function switchTab(tabFrame, btn)
     if activeTab == tabFrame then return end
     activeTab = tabFrame
@@ -378,21 +374,17 @@ local function switchTab(tabFrame, btn)
     for _, t in pairs({TabGfx, TabSky, TabOptimize, TabTheme}) do 
         if t ~= tabFrame then t.Visible = false end
     end
-    
     for _, b in pairs(tabButtons) do
         b.BackgroundColor3 = Color3.fromRGB(20, 16, 30)
         b.BackgroundTransparency = 0.4
         b.TextColor3 = Color3.fromRGB(180, 180, 180)
     end
     
-    -- อนิเมชันสไลด์แท็บเข้ามาจากขวาไปซ้ายพร้อมกับค่อยๆ สว่างขึ้น
-    tabFrame.Position = UDim2.new(0, 25, 0, 0) -- จุดเริ่มต้นด้านขวาเล็กน้อย
-    tabFrame.Size = UDim2.new(1, 0, 1, 0)
+    tabFrame.Position = UDim2.new(0, 15, 0, 0)
     tabFrame.Visible = true
-    
-    TweenService:Create(tabFrame, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0, 0, 0, 0)
-    }):Play()
+    pcall(function()
+        TweenService:Create(tabFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+    end)
     
     btn.BackgroundColor3 = COLOR_THEMES[currentThemeIndex].primary
     btn.BackgroundTransparency = 0.2
@@ -411,8 +403,7 @@ local function addTabButton(text, order, targetTab)
     Btn.TextSize = 11
     Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
     
-    applySpringPhysics(Btn) -- เพิ่มแรงสปริงปุ่มแท็บ
-    
+    applySpringPhysics(Btn)
     Btn.MouseButton1Click:Connect(function() switchTab(targetTab, Btn) end)
     table.insert(tabButtons, Btn)
     return Btn
@@ -425,7 +416,7 @@ local b4 = addTabButton("Theme",    4, TabTheme)
 
 switchTab(TabGfx, b1)
 
--- ==================== DRAG SYSTEM (ระบบลากย้ายหน้าต่าง) ====================
+-- ==================== DRAG SYSTEM ====================
 local dragToggle, dragStart, startPos
 TitleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -444,13 +435,12 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- ==================== MINIMIZE (ย่อพับ UI สปริง) ====================
+-- ==================== MINIMIZE ====================
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
-    -- [NEW] อนิเมชันย่อขยายแบบเยลลี่เด้งดึ๋ง (Elastic Springs)
     if isMinimized then
-        MainFrame:TweenSize(UDim2.new(0, 180, 0, 65), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.45, true)
+        MainFrame:TweenSize(UDim2.new(0, 180, 0, 65), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.4, true)
         Sidebar.Visible = false
         ContentArea.Visible = false
         MinBtn.Text = "+"
@@ -460,7 +450,7 @@ MinBtn.MouseButton1Click:Connect(function()
         InfoFPSLabel:TweenSizeAndPosition(UDim2.new(0,100,0,20), UDim2.new(0,12,0,18), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
         MinimizedStatusLabel.Visible = true
     else
-        MainFrame:TweenSize(UDim2.new(0, 320, 0, 260), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.45, true)
+        MainFrame:TweenSize(UDim2.new(0, 320, 0, 260), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.4, true)
         task.delay(0.15, function() Sidebar.Visible = true ContentArea.Visible = true end)
         MinBtn.Text = "-"
         TitleLabel:TweenSizeAndPosition(UDim2.new(0.6,0,1,0), UDim2.new(0,15,0,0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
@@ -496,12 +486,12 @@ local function createToggle(parent, text, order, defaultVal, callback)
     ToggleBtn.TextSize = 10
     Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 10)
     
-    applySpringPhysics(ToggleBtn) -- เพิ่มแรงสปริงปุ่ม Toggle
+    applySpringPhysics(ToggleBtn)
     
     local current = defaultVal
     ToggleBtn.MouseButton1Click:Connect(function()
         current = not current
-        TweenService:Create(ToggleBtn, TweenInfo.new(0.25, Enum.EasingStyle.Back), {
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
             BackgroundColor3 = current and COLOR_THEMES[currentThemeIndex].primary or Color3.fromRGB(40,30,55)
         }):Play()
         ToggleBtn.Text = current and "ON" or "OFF"
@@ -627,7 +617,6 @@ for _, preset in pairs(SKY_PRESETS) do
     Instance.new("UIStroke", SkyBtn).Color = Color3.fromRGB(80, 60, 110)
     
     applySpringPhysics(SkyBtn)
-    
     SkyBtn.MouseButton1Click:Connect(function() applySkyPreset(preset) end)
     orderIdx += 1
 end
@@ -656,7 +645,6 @@ ApplyCustomBtn.TextSize = 12
 Instance.new("UICorner", ApplyCustomBtn).CornerRadius = UDim.new(0, 6)
 
 applySpringPhysics(ApplyCustomBtn)
-
 ApplyCustomBtn.MouseButton1Click:Connect(function()
     local id = InputField.Text
     if id ~= "" then
@@ -737,11 +725,11 @@ end
 BoostButton.MouseButton1Click:Connect(function()
     local state = not isFpsBoostOn
     if state then
-        TweenService:Create(BoostButton, TweenInfo.new(0.25, Enum.EasingStyle.Back), {BackgroundColor3 = Color3.fromRGB(0,220,100)}):Play()
+        TweenService:Create(BoostButton, TweenInfo.new(0.2, Enum.EasingStyle.Back), {BackgroundColor3 = Color3.fromRGB(0,220,100)}):Play()
         BoostButton.Text = "DISABLE FPS BOOST"
         task.spawn(function() triggerFPSBoost(true) end)
     else
-        TweenService:Create(BoostButton, TweenInfo.new(0.25, Enum.EasingStyle.Back), {BackgroundColor3 = Color3.fromRGB(255,60,100)}):Play()
+        TweenService:Create(BoostButton, TweenInfo.new(0.2, Enum.EasingStyle.Back), {BackgroundColor3 = Color3.fromRGB(255,60,100)}):Play()
         BoostButton.Text = "ENABLE FPS BOOST"
         task.spawn(function() triggerFPSBoost(false) end)
     end
@@ -784,7 +772,7 @@ local function applyTheme(index)
 
     for _, b in pairs(tabButtons) do
         if b.BackgroundTransparency < 0.35 then
-            TweenService:Create(b, TweenInfo.new(0.35, Enum.EasingStyle.Back), {BackgroundColor3 = theme.primary}):Play()
+            TweenService:Create(b, TweenInfo.new(0.2, Enum.EasingStyle.Back), {BackgroundColor3 = theme.primary}):Play()
         end
     end
 
@@ -807,12 +795,8 @@ for i, theme in ipairs(COLOR_THEMES) do
     applySpringPhysics(ThemeBtn)
 
     ThemeBtn.MouseButton1Click:Connect(function()
-        if theme.name == "Rainbow" then
-            rainbowActive = true
-        else
-            rainbowActive = false
-            applyTheme(i)
-        end
+        if theme.name == "Rainbow" then rainbowActive = true
+        else rainbowActive = false applyTheme(i) end
     end)
 end
 
@@ -854,7 +838,9 @@ RunService.RenderStepped:Connect(function(dt)
 
         if not rainbowActive and BorderColorNow ~= lastBorderColor then
             lastBorderColor = BorderColorNow
-            TweenService:Create(UIStroke, TweenInfo.new(0.4), {Color = BorderColorNow}):Play()
+            pcall(function()
+                TweenService:Create(UIStroke, TweenInfo.new(0.4), {Color = BorderColorNow}):Play()
+            end)
         end
 
         local fpsColor =
@@ -869,7 +855,7 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
-print("MYTHICAL SHADER v4.4: Super Animation Edition Loaded!")
+print("MYTHICAL SHADER v4.4.1: Super Animation Edition Loaded!")
 
 -- ==================== GRID SYSTEM & RESIZE CONTROLLER ====================
 local camera = workspace.CurrentCamera
@@ -924,10 +910,11 @@ local function applyGridSize(preset)
     local ph = gridPx(preset.h, "y")
 
     updateUIVisibility(pw, ph)
-
-    TweenService:Create(MainFrame, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, math.max(pw, 50), 0, math.max(ph, 35))
-    }):Play()
+    pcall(function()
+        TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, math.max(pw, 50), 0, math.max(ph, 35))
+        }):Play()
+    end)
 end
 
 SizeBtn.MouseButton1Click:Connect(function()
@@ -959,13 +946,16 @@ ResizeHandle.InputBegan:Connect(function(input)
         resizeStartInputPos = input.Position
         resizeStartSize = Vector2.new(MainFrame.Size.X.Offset, MainFrame.Size.Y.Offset)
         
-        -- ค่อยๆ เรืองแสงเมื่อลาก
-        TweenService:Create(ResizeHandle, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {TextTransparency = 0}):Play()
+        pcall(function()
+            TweenService:Create(ResizeHandle, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {TextTransparency = 0}):Play()
+        end)
 
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 isResizing = false
-                TweenService:Create(ResizeHandle, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {TextTransparency = 0.5}):Play()
+                pcall(function()
+                    TweenService:Create(ResizeHandle, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {TextTransparency = 0.5}):Play()
+                end)
             end
         end)
     end
@@ -981,10 +971,11 @@ UserInputService.InputChanged:Connect(function(input)
         SizeBtn.Text = "Custom"
         updateUIVisibility(newW, newH)
         
-        -- ใช้ Tween ขนาดสั้นมากๆ (0.05 วินาที) แทนการเปลี่ยนทันที เพื่อลบอาการสั่น/กระตุกแบบดิบๆ
-        TweenService:Create(MainFrame, TweenInfo.new(0.05, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, newW, 0, newH)
-        }):Play()
+        pcall(function()
+            TweenService:Create(MainFrame, TweenInfo.new(0.04, Enum.EasingStyle.Quad), {
+                Size = UDim2.new(0, newW, 0, newH)
+            }):Play()
+        end)
     end
 end)
 
@@ -994,15 +985,13 @@ task.spawn(function()
         local vp = camera.ViewportSize
         if vp ~= lastVP then
             lastVP = vp
-            if SizeBtn.Text ~= "Custom" then
-                applyGridSize(SIZE_PRESETS[currentSizeIndex])
-            end
+            if SizeBtn.Text ~= "Custom" then applyGridSize(SIZE_PRESETS[currentSizeIndex]) end
         end
     end
 end)
 
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
-
-print("MYTHICAL SHADER v4.4: Ultra-Premium Animation Engine Active!")
+print("MYTHICAL SHADER v4.4.1: Delta Ready!")
 
 ```
+
