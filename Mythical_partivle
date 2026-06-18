@@ -1,0 +1,367 @@
+-- [[ STELLARHUP: MYTHICAL SHADER v6.8 OFFICIAL ]] --
+-- Premium Animation Matrix + JSON Config Saver + Moving Average FPS + Text Filtering Search
+
+local Lighting = game:GetService("Lighting")
+local Terrain = workspace.Terrain
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- ==================== SAFETY & ENVIRONMENT ====================
+local setfpscap = (typeof(setfpscap) == "function" or typeof(setfpscap) == "table") and setfpscap or nil
+local getgenv = (typeof(getgenv) == "function") and getgenv or function() return _G end
+local writefile = (typeof(writefile) == "function") and writefile or nil
+local readfile = (typeof(readfile) == "function") and readfile or nil
+
+pcall(function() if setfpscap then setfpscap(165) end end)
+
+-- ==================== ORIGINAL STATE BACKUP SYSTEM ====================
+local function backupState(prop, default)
+    local s, v = pcall(function() return Lighting[prop] end)
+    return s and v or default
+end
+
+local originalFogStart = backupState("FogStart", 0)
+local originalFogEnd = backupState("FogEnd", 100000)
+local originalFogColor = backupState("FogColor", Color3.fromRGB(192, 192, 192))
+local originalAmbient = backupState("Ambient", Color3.fromRGB(0, 0, 0))
+local originalOutdoorAmbient = backupState("OutdoorAmbient", Color3.fromRGB(128, 128, 128))
+local originalBrightness = backupState("Brightness", 1)
+local originalExposure = backupState("ExposureCompensation", 0)
+
+local function restoreLightingToDefault()
+    Lighting.FogStart = originalFogStart
+    Lighting.FogEnd = originalFogEnd
+    Lighting.FogColor = originalFogColor
+    Lighting.Ambient = originalAmbient
+    Lighting.OutdoorAmbient = originalOutdoorAmbient
+    Lighting.Brightness = originalBrightness
+    Lighting.ExposureCompensation = originalExposure
+end
+
+-- ==================== WEAK REFERENCE STORAGE & CLEANUP ====================
+local MaterialCache = setmetatable({}, { __mode = "k" })
+local ActiveParts = setmetatable({}, { __mode = "k" })
+
+if getgenv().StellarConnections then
+    for _, conn in pairs(getgenv().StellarConnections) do if conn then pcall(function() conn:Disconnect() end) end end
+    table.clear(getgenv().StellarConnections)
+else getgenv().StellarConnections = {} end
+
+local function safeConnect(signal, callback)
+    local conn = signal:Connect(callback)
+    table.insert(getgenv().StellarConnections, conn)
+    return conn
+end
+
+local instancesToClear = {"STELLARHUP_MYTHICAL", "StellarUIBlur", "StellarDOF", "StellarBloom", "StellarColorCorr", "StellarAtmos"}
+for _, name in pairs(instancesToClear) do
+    local found = CoreGui:FindFirstChild(name) or Lighting:FindFirstChild(name)
+    if found then found:Destroy() end
+end
+restoreLightingToDefault()
+
+-- ==================== CONFIGS & SAVER (🔒 FEATURE 3) ====================
+local CONFIG_FILE = "StellarConfig_v6.json"
+local cfg = { currentThemeIndex = 1, pbrEnabled = true, antiBlueGloss = true, isFpsBoostOn = false }
+
+local function loadConfig()
+    if readfile then
+        local s, res = pcall(function() return readfile(CONFIG_FILE) end)
+        if s and res then
+            local s2, data = pcall(function() return HttpService:JSONDecode(res) end)
+            if s2 and typeof(data) == "table" then for k, v in pairs(data) do cfg[k] = v end end
+        end
+    end
+end
+local function saveConfig()
+    if writefile then pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(cfg)) end) end
+end
+loadConfig()
+
+local isFpsBoostOn = cfg.isFpsBoostOn
+local pbrEnabled = cfg.pbrEnabled
+local antiBlueGloss = cfg.antiBlueGloss
+local horrorFogEnabled = false
+local currentThemeIndex = cfg.currentThemeIndex
+local rainbowActive = (currentThemeIndex == 5)
+local activeParticleMode = "None"
+local activeTabButton = nil
+
+local COLOR_THEMES = {
+    { name = "Purple",    primary = Color3.fromRGB(180, 0, 255),   secondary = Color3.fromRGB(0, 220, 255) },
+    { name = "Red",       primary = Color3.fromRGB(255, 40, 80),   secondary = Color3.fromRGB(255, 120, 0) },
+    { name = "Pink",      primary = Color3.fromRGB(255, 80, 180),  secondary = Color3.fromRGB(255, 180, 220)},
+    { name = "Glass",     primary = Color3.fromRGB(255, 255, 255), secondary = Color3.fromRGB(200, 230, 255)},
+    { name = "Rainbow",   primary = Color3.fromRGB(255, 0, 0),     secondary = Color3.fromRGB(0, 0, 255) },
+}
+
+-- ==================== LIGHTING SETUP ====================
+local Atmosphere = Instance.new("Atmosphere", Lighting) Atmosphere.Name = "StellarAtmos"
+local ColorCorrection = Instance.new("ColorCorrectionEffect", Lighting) ColorCorrection.Name = "StellarColorCorr"
+local Bloom = Instance.new("BloomEffect", Lighting) Bloom.Name = "StellarBloom"
+local DOF = Instance.new("DepthOfFieldEffect", Lighting) DOF.Name = "StellarDOF" DOF.NearIntensity = 0 DOF.FocusDistance = 35 DOF.InFocusRadius = 20 DOF.Enabled = true
+
+local function registerAndApplyPart(v)
+    if not (v:IsA("BasePart") or v:IsA("MeshPart")) then return end
+    if not MaterialCache[v] then
+        MaterialCache[v] = { Material = v.Material, CastShadow = v.CastShadow, Reflectance = v.Reflectance, Color = v.Color }
+        ActiveParts[v] = true
+    end
+    if isFpsBoostOn then
+        v.Material = Enum.Material.SmoothPlastic; v.CastShadow = false; v.Reflectance = 0
+    else
+        local data = MaterialCache[v] v.Material = data.Material; v.CastShadow = data.CastShadow
+        if pbrEnabled then
+            local m = data.Material local r = 0
+            if m == Enum.Material.Concrete then r = 0.15 elseif m == Enum.Material.SmoothPlastic then r = 0.35 elseif m == Enum.Material.Marble then r = 0.55 elseif m == Enum.Material.Metal or m == Enum.Material.DiamondPlate then r = 0.65 elseif m == Enum.Material.Glass then r = 0.8 elseif m == Enum.Material.Neon then r = 0.85 end
+            if antiBlueGloss then
+                local c = data.Color local lum = (c.R * 0.299) + (c.G * 0.587) + (c.B * 0.114)
+                v.Reflectance = lum < 0.18 and r * (lum * 3.5) or r
+            else v.Reflectance = r end
+        else v.Reflectance = data.Reflectance end
+    end
+end
+
+task.spawn(function()
+    local count = 0
+    for _, v in pairs(workspace:GetDescendants()) do registerAndApplyPart(v) count = count + 1 if count % 300 == 0 then task.wait() end end
+end)
+safeConnect(workspace.DescendantAdded, function(v) task.delay(0.1, function() registerAndApplyPart(v) end) end)
+
+local ModeText = "Status: Optimal"
+local BorderColorNow = Color3.fromRGB(180, 0, 255)
+local rainbowHue = 0
+
+-- ==================== UI BUILD SYSTEM ====================
+local ScreenGui = Instance.new("ScreenGui", CoreGui) ScreenGui.Name = "STELLARHUP_MYTHICAL" ScreenGui.IgnoreGuiInset = true
+local MainFrame = Instance.new("Frame", ScreenGui) MainFrame.Size = UDim2.new(0, 320, 0, 260) MainFrame.Position = UDim2.new(0.5, -160, 0.4, -130) MainFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 18) MainFrame.BackgroundTransparency = 1 MainFrame.Active = true Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 14)
+
+local BlurBg = Instance.new("BlurEffect", Lighting) BlurBg.Name = "StellarUIBlur" BlurBg.Size = 15
+
+local GlassHighlight = Instance.new("Frame", MainFrame) GlassHighlight.Size = UDim2.new(1, -6, 1, -6) GlassHighlight.Position = UDim2.new(0, 3, 0, 3) GlassHighlight.BackgroundColor3 = Color3.fromRGB(255, 255, 255) GlassHighlight.BackgroundTransparency = 1 Instance.new("UICorner", GlassHighlight).CornerRadius = UDim.new(0, 12)
+local GlassGradient = Instance.new("UIGradient", GlassHighlight) GlassGradient.Rotation = 45 GlassGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(255,255,255)), ColorSequenceKeypoint.new(0.3, Color3.fromRGB(140,140,140)), ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0))})
+local GlassShimmer = Instance.new("Frame", MainFrame) GlassShimmer.Size = UDim2.new(1, -20, 0, 1) GlassShimmer.Position = UDim2.new(0, 10, 0, 1) GlassShimmer.BackgroundColor3 = Color3.fromRGB(255, 255, 255) GlassShimmer.BackgroundTransparency = 1 Instance.new("UICorner", GlassShimmer)
+local UIStroke = Instance.new("UIStroke", MainFrame) UIStroke.Thickness = 1.8 UIStroke.Transparency = 1 UIStroke.Color = Color3.fromRGB(180, 0, 255)
+local UIGradientStroke = Instance.new("UIGradient", UIStroke) UIGradientStroke.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 0, 255)), ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 220, 255)), ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 0, 255))})
+
+local TitleBar = Instance.new("Frame", MainFrame) TitleBar.Size = UDim2.new(1, 0, 0, 35) TitleBar.BackgroundTransparency = 1
+local TitleLabel = Instance.new("TextLabel", TitleBar) TitleLabel.Size = UDim2.new(0.6, 0, 1, 0) TitleLabel.Position = UDim2.new(0, 15, 0, 0) TitleLabel.BackgroundTransparency = 1 TitleLabel.Text = "MYTHICAL v6.8" TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255) TitleLabel.Font = Enum.Font.Code TitleLabel.TextSize = 13 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left TitleLabel.TextTransparency = 1
+local MinBtn = Instance.new("TextButton", TitleBar) MinBtn.Size = UDim2.new(0, 25, 0, 25) MinBtn.Position = UDim2.new(1, -35, 0.5, -12) MinBtn.BackgroundColor3 = Color3.fromRGB(30, 25, 45) MinBtn.BackgroundTransparency = 1 MinBtn.Text = "-" MinBtn.TextColor3 = Color3.fromRGB(0, 220, 255) MinBtn.Font = Enum.Font.Code MinBtn.TextSize = 14 Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
+local InfoFPSLabel = Instance.new("TextLabel", TitleBar) InfoFPSLabel.Size = UDim2.new(0.3, 0, 1, 0) InfoFPSLabel.Position = UDim2.new(1, -135, 0, 0) InfoFPSLabel.BackgroundTransparency = 1 InfoFPSLabel.Text = "FPS: --" InfoFPSLabel.TextColor3 = Color3.fromRGB(0, 255, 120) InfoFPSLabel.Font = Enum.Font.Code InfoFPSLabel.TextSize = 11 InfoFPSLabel.TextXAlignment = Enum.TextXAlignment.Right InfoFPSLabel.TextTransparency = 1
+local MinimizedStatusLabel = Instance.new("TextLabel", TitleBar) MinimizedStatusLabel.Size = UDim2.new(1, -24, 0, 20) MinimizedStatusLabel.Position = UDim2.new(0, 12, 0, 32) MinimizedStatusLabel.BackgroundTransparency = 1 MinimizedStatusLabel.TextColor3 = Color3.fromRGB(180, 0, 255) MinimizedStatusLabel.Font = Enum.Font.Code MinimizedStatusLabel.TextSize = 11 MinimizedStatusLabel.Visible = false
+
+local Sidebar = Instance.new("Frame", MainFrame) Sidebar.Size = UDim2.new(0, 95, 1, -35) Sidebar.Position = UDim2.new(0, 0, 0, 35) Sidebar.BackgroundColor3 = Color3.fromRGB(10, 8, 15) Sidebar.BackgroundTransparency = 1
+local ContentArea = Instance.new("Frame", MainFrame) ContentArea.Size = UDim2.new(1, -95, 1, -35) ContentArea.Position = UDim2.new(0, 95, 0, 35) ContentArea.BackgroundTransparency = 1
+
+local function runIntroAnimation()
+    TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {BackgroundTransparency = 0.4}):Play()
+    TweenService:Create(GlassHighlight, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {BackgroundTransparency = 0.92}):Play()
+    TweenService:Create(GlassShimmer, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {BackgroundTransparency = 0.6}):Play()
+    TweenService:Create(UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {Transparency = 0}):Play()
+    TweenService:Create(Sidebar, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {BackgroundTransparency = 0.6}):Play()
+    TweenService:Create(TitleLabel, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
+    TweenService:Create(InfoFPSLabel, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
+    TweenService:Create(MinBtn, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {BackgroundTransparency = 0.3}):Play()
+end
+
+local function createTabFrame() local f = Instance.new("Frame", ContentArea) f.Size = UDim2.new(1, 0, 1, 0) f.BackgroundTransparency = 1 f.Visible = false return f end
+local TabGfx, TabParticles, TabOptimize, TabTheme = createTabFrame(), createTabFrame(), createTabFrame(), createTabFrame()
+local tabButtons = {}
+
+local function switchTab(tabFrame, btn)
+    for _, t in pairs({TabGfx, TabParticles, TabOptimize, TabTheme}) do
+        if t.Visible then
+            for _, child in pairs(t:GetDescendants()) do if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("ScrollingFrame") or child:IsA("TextBox") then child.Size = child.Size end end
+            t.Visible = false
+        end
+    end
+    for _, b in pairs(tabButtons) do TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 16, 30), BackgroundTransparency = 0.4}):Play() b.TextColor3 = Color3.fromRGB(180, 180, 180) end
+    tabFrame.Visible = true activeTabButton = btn
+    TweenService:Create(btn, TweenInfo.new(0.25), {BackgroundColor3 = COLOR_THEMES[currentThemeIndex].primary, BackgroundTransparency = 0.2}):Play() btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+end
+
+local function addTabButton(text, order, targetTab)
+    local Btn = Instance.new("TextButton", Sidebar)
+    Btn.Size = UDim2.new(1, -10, 0, 26) Btn.Position = UDim2.new(0, 5, 0, (order-1)*31 + 8) Btn.BackgroundColor3 = Color3.fromRGB(20, 16, 30) Btn.BackgroundTransparency = 0.4 Btn.Text = text Btn.TextColor3 = Color3.fromRGB(180, 180, 180) Btn.Font = Enum.Font.SourceSansBold Btn.TextSize = 11 Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+    safeConnect(Btn.MouseButton1Click, function() switchTab(targetTab, Btn) end)
+    table.insert(tabButtons, Btn) return Btn
+end
+
+addTabButton("Graphics", 1, TabGfx) addTabButton("Effects Matrix", 2, TabParticles) addTabButton("Optimize", 3, TabOptimize) addTabButton("Interface Theme", 4, TabTheme)
+
+-- ==================== TOGGLE MAKER ====================
+local function createToggle(parent, text, order, defaultVal, callback)
+    local Frame = Instance.new("Frame", parent) Frame.Size = UDim2.new(1, -20, 0, 30) Frame.Position = UDim2.new(0, 10, 0, (order-1)*35 + 8) Frame.BackgroundTransparency = 1
+    local Label = Instance.new("TextLabel", Frame) Label.Size = UDim2.new(0.65, 0, 1, 0) Label.BackgroundTransparency = 1 Label.Text = text Label.TextColor3 = Color3.fromRGB(220, 220, 220) Label.TextSize = 11 Label.Font = Enum.Font.SourceSans Label.TextXAlignment = Enum.TextXAlignment.Left
+    local ToggleBtn = Instance.new("TextButton", Frame) ToggleBtn.Size = UDim2.new(0, 45, 0, 20) ToggleBtn.Position = UDim2.new(1, -45, 0.5, -10) ToggleBtn.BackgroundColor3 = defaultVal and COLOR_THEMES[currentThemeIndex].primary or Color3.fromRGB(40,30,55) ToggleBtn.BackgroundTransparency = 0.2 ToggleBtn.Text = defaultVal and "ON" or "OFF" ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255) ToggleBtn.Font = Enum.Font.SourceSansBold ToggleBtn.TextSize = 10 Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 10)
+    safeConnect(ToggleBtn.MouseButton1Click, function()
+        defaultVal = not defaultVal local targetColor = defaultVal and COLOR_THEMES[currentThemeIndex].primary or Color3.fromRGB(40,30,55)
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.25), {BackgroundColor3 = targetColor}):Play() ToggleBtn.Text = defaultVal and "ON" or "OFF" callback(defaultVal)
+    end)
+end
+
+local function flushCacheToWorld() for part in pairs(ActiveParts) do if part and part.Parent then registerAndApplyPart(part) end end end
+
+createToggle(TabGfx, "Depth of Field (DOF)", 1, true, function(val) DOF.Enabled = val end)
+createToggle(TabGfx, "4K PBR Reflectance", 2, pbrEnabled, function(val) pbrEnabled = val cfg.pbrEnabled = val saveConfig() flushCacheToWorld() end)
+createToggle(TabGfx, "Anti-Blue Gloss", 3, antiBlueGloss, function(val) antiBlueGloss = val cfg.antiBlueGloss = val saveConfig() flushCacheToWorld() end)
+createToggle(TabGfx, "Horror Fog Mode", 4, horrorFogEnabled, function(val)
+    horrorFogEnabled = val
+    if val then ModeText = "Status: Horror Fog" BorderColorNow = Color3.fromRGB(255, 0, 50) Lighting.FogStart = 0 Lighting.FogEnd = 45 Lighting.FogColor = Color3.fromRGB(5, 5, 10) Lighting.Ambient = Color3.fromRGB(0, 0, 0) Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0) Lighting.Brightness = 0
+    else if activeParticleMode == "None" then restoreLightingToDefault() ModeText = "Status: Optimal" BorderColorNow = COLOR_THEMES[currentThemeIndex].primary end end
+end)
+
+-- ==================== 🎭 EFFECTS MATRIX + WELD CONSTRAINT + STATE CONFIG CONTROL ====================
+local function clearParticles() 
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("StellarParticles") then LocalPlayer.Character.StellarParticles:Destroy() end 
+    if not horrorFogEnabled then restoreLightingToDefault() ModeText = "Status: Optimal" BorderColorNow = COLOR_THEMES[currentThemeIndex].primary end -- 🔒 (FIX HORROR FOG OVERLAP)
+end
+
+local function applyParticleMode(mode)
+    clearParticles(); activeParticleMode = mode; if mode == "None" then return end
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait() local root = char:WaitForChild("HumanoidRootPart", 5) if not root then return end
+    local container = Instance.new("Part") container.Name = "StellarParticles" container.Size = Vector3.new(65, 2, 65) container.Transparency = 1 container.CanCollide = false container.CFrame = root.CFrame * CFrame.new(0, 25, 0) container.Parent = char
+    
+    -- 🔒 เปลี่ยนมาใช้ WeldConstraint แทน Weld เก่าเพื่อความเสถียรสูงสุดตามยุคสมัย (FEATURE 2)
+    local weld = Instance.new("WeldConstraint") weld.Part0 = root weld.Part1 = container weld.Parent = container
+    local emitter = Instance.new("ParticleEmitter") emitter.Parent = container emitter.Rate = 120
+
+    if mode == "Rain" then
+        if not horrorFogEnabled then ModeText = "Status: Rainy" BorderColorNow = Color3.fromRGB(100, 160, 255) Lighting.FogStart = 0 Lighting.FogEnd = 150 Lighting.FogColor = Color3.fromRGB(110, 120, 135) end
+        emitter.Texture = "rbxassetid://6137682281" emitter.Size = NumberSequence.new(0.7) emitter.Speed = NumberRange.new(60, 80) emitter.Lifetime = NumberRange.new(1) emitter.Acceleration = Vector3.new(0, -25, 0)
+    elseif mode == "Snow" then
+        if not horrorFogEnabled then ModeText = "Status: Snowy" BorderColorNow = Color3.fromRGB(230, 245, 255) Lighting.FogStart = 10 Lighting.FogEnd = 300 Lighting.FogColor = Color3.fromRGB(240, 240, 245) end
+        emitter.Texture = "rbxassetid://12658148842" emitter.Size = NumberSequence.new(0.4, 0.8) emitter.Speed = NumberRange.new(10, 20) emitter.Lifetime = NumberRange.new(3, 4) emitter.Acceleration = Vector3.new(-2, -5, 0)
+    elseif mode == "Sakura" then
+        if not horrorFogEnabled then ModeText = "Status: Sakura Blossom" BorderColorNow = Color3.fromRGB(255, 150, 200) end
+        emitter.Texture = "rbxassetid://4623101890" emitter.Size = NumberSequence.new(0.5, 0.9) emitter.Speed = NumberRange.new(8, 15) emitter.Lifetime = NumberRange.new(4, 6) emitter.Acceleration = Vector3.new(4, -3, 1) emitter.Rate = 45
+    elseif mode == "Dust" then
+        if not horrorFogEnabled then ModeText = "Status: Desert Dust" BorderColorNow = Color3.fromRGB(210, 180, 140) Lighting.FogStart = 0 Lighting.FogEnd = 200 Lighting.FogColor = Color3.fromRGB(185, 160, 130) end
+        emitter.Texture = "rbxassetid://14452601140" emitter.Size = NumberSequence.new(2, 5) emitter.Speed = NumberRange.new(5, 12) emitter.Lifetime = NumberRange.new(5) emitter.Transparency = NumberSequence.new(0.6, 1) emitter.Rate = 30
+    elseif mode == "Fireflies" then
+        if not horrorFogEnabled then ModeText = "Status: Fireflies Night" BorderColorNow = Color3.fromRGB(200, 255, 100) end
+        container.CFrame = root.CFrame; container.Size = Vector3.new(40, 20, 40)
+        emitter.Texture = "rbxassetid://258129511" emitter.Size = NumberSequence.new(0.2, 0.4) emitter.Speed = NumberRange.new(2, 5) emitter.Lifetime = NumberRange.new(3, 5) emitter.LightEmission = 1 emitter.Rate = 35
+    end
+end
+
+-- 🔍 BOX INPUT SEARCH FILTER (FEATURE 4)
+local SearchBox = Instance.new("TextBox", TabParticles) SearchBox.Size = UDim2.new(1, -20, 0, 24) SearchBox.Position = UDim2.new(0, 10, 0, 8) SearchBox.BackgroundColor3 = Color3.fromRGB(25, 20, 35) SearchBox.BackgroundTransparency = 0.4 SearchBox.Text = "" SearchBox.PlaceholderText = "Search Effects..." SearchBox.TextColor3 = Color3.fromRGB(255, 255, 255) SearchBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 140) SearchBox.Font = Enum.Font.SourceSans SearchBox.TextSize = 12 Instance.new("UICorner", SearchBox).CornerRadius = UDim.new(0, 5)
+
+local scrollEffects = Instance.new("ScrollingFrame", TabParticles) scrollEffects.Size = UDim2.new(1, -10, 1, -42) scrollEffects.Position = UDim2.new(0, 5, 0, 38) scrollEffects.BackgroundTransparency = 1 scrollEffects.CanvasSize = UDim2.new(0, 0, 0, 210) scrollEffects.ScrollBarThickness = 2
+local effectsList = {"None", "Rain", "Snow", "Sakura", "Dust", "Fireflies"} local activeButtonsStorage = {}
+
+for idx, effName in ipairs(effectsList) do
+    local EffBtn = Instance.new("TextButton", scrollEffects) EffBtn.Size = UDim2.new(1, -10, 0, 26) EffBtn.BackgroundColor3 = Color3.fromRGB(30, 24, 45) EffBtn.BackgroundTransparency = 0.3 EffBtn.Text = effName == "None" and "❌ Clear All Effects" or "✨ FX: " .. effName EffBtn.TextColor3 = Color3.fromRGB(240, 240, 255) EffBtn.Font = Enum.Font.SourceSans Instance.new("UICorner", EffBtn).CornerRadius = UDim.new(0, 6)
+    safeConnect(EffBtn.MouseButton1Click, function() applyParticleMode(effName) end) activeButtonsStorage[effName] = EffBtn
+end
+
+local function updateSearchFilter()
+    local query = string.lower(SearchBox.Text) local renderCount = 0
+    for name, btn in pairs(activeButtonsStorage) do
+        if query == "" or string.find(string.lower(name), query) then
+            btn.Visible = true btn.Position = UDim2.new(0, 5, 0, renderCount * 31) renderCount = renderCount + 1
+        else btn.Visible = false end
+    end
+    scrollEffects.CanvasSize = UDim2.new(0, 0, 0, renderCount * 31)
+end
+safeConnect(SearchBox:GetPropertyChangedSignal("Text"), updateSearchFilter) updateSearchFilter()
+
+-- ==================== OPTIMIZE & THEMES ====================
+local BoostButton = Instance.new("TextButton", TabOptimize) BoostButton.Size = UDim2.new(1, -20, 0, 45) BoostButton.Position = UDim2.new(0, 10, 0, 20) BoostButton.BackgroundColor3 = isFpsBoostOn and Color3.fromRGB(0,220,100) or Color3.fromRGB(255, 60, 100) BoostButton.BackgroundTransparency = 0.3 BoostButton.Text = isFpsBoostOn and "DISABLE ENGINE BOOST" or "ENABLE ENGINE BOOST" BoostButton.Font = Enum.Font.SourceSansBold BoostButton.TextSize = 13 Instance.new("UICorner", BoostButton).CornerRadius = UDim.new(0, 8)
+safeConnect(BoostButton.MouseButton1Click, function()
+    isFpsBoostOn = not isFpsBoostOn cfg.isFpsBoostOn = isFpsBoostOn saveConfig()
+    if isFpsBoostOn then TweenService:Create(BoostButton, TweenInfo.new(0.25), {BackgroundColor3 = Color3.fromRGB(0,220,100)}):Play() BoostButton.Text = "DISABLE ENGINE BOOST" Terrain.Decoration = false Lighting.GlobalShadows = false
+    else TweenService:Create(BoostButton, TweenInfo.new(0.25), {BackgroundColor3 = Color3.fromRGB(255,60,100)}):Play() BoostButton.Text = "ENABLE ENGINE BOOST" Terrain.Decoration = true Lighting.GlobalShadows = true end
+    flushCacheToWorld()
+end)
+
+local activeThemeLabel = Instance.new("TextLabel", TabTheme) activeThemeLabel.Size = UDim2.new(1, -10, 0, 18) activeThemeLabel.Position = UDim2.new(0, 10, 0, 10) activeThemeLabel.BackgroundTransparency = 1 activeThemeLabel.Text = "Active: Purple" activeThemeLabel.Font = Enum.Font.Code activeThemeLabel.TextSize = 10 activeThemeLabel.TextXAlignment = Enum.TextXAlignment.Left
+local function applyTheme(index)
+    local theme = COLOR_THEMES[index] currentThemeIndex = index cfg.currentThemeIndex = index saveConfig() activeThemeLabel.Text = "Active: " .. theme.name activeThemeLabel.TextColor3 = theme.primary
+    UIGradientStroke.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, theme.primary), ColorSequenceKeypoint.new(0.5, theme.secondary), ColorSequenceKeypoint.new(1, theme.primary)})
+    if activeTabButton then TweenService:Create(activeTabButton, TweenInfo.new(0.25), {BackgroundColor3 = theme.primary}):Play() end MinBtn.TextColor3 = theme.secondary; if not horrorFogEnabled and activeParticleMode == "None" then BorderColorNow = theme.primary end
+end
+for i, theme in ipairs(COLOR_THEMES) do
+    local ThemeBtn = Instance.new("TextButton", TabTheme) ThemeBtn.Size = UDim2.new(1, -10, 0, 24) ThemeBtn.Position = UDim2.new(0, 5, 0, (i-1)*28 + 32) ThemeBtn.BackgroundColor3 = theme.primary ThemeBtn.BackgroundTransparency = 0.3 ThemeBtn.Text = theme.name ThemeBtn.TextColor3 = Color3.fromRGB(255, 255, 255) ThemeBtn.Font = Enum.Font.SourceSansBold ThemeBtn.TextSize = 11 Instance.new("UICorner", ThemeBtn).CornerRadius = UDim.new(0, 6)
+    safeConnect(ThemeBtn.MouseButton1Click, function() if theme.name == "Rainbow" then rainbowActive = true else rainbowActive = false applyTheme(i) end end)
+end
+
+-- ==================== DRAG SYSTEM ====================
+local dragToggle, dragStart, startPos local dragConnection = nil
+safeConnect(TitleBar.InputBegan, function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragToggle = true dragStart = input.Position startPos = MainFrame.Position
+        if dragConnection then dragConnection:Disconnect() end
+        dragConnection = input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragToggle = false if dragConnection then dragConnection:Disconnect() dragConnection = nil end end end)
+    end
+end)
+safeConnect(UserInputService.InputChanged, function(input) if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragToggle then local delta = input.Position - dragStart MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset+delta.X, startPos.Y.Scale, startPos.Y.Offset+delta.Y) end end)
+
+-- ==================== 🎭 PREMIUM FADE ANIMATION MINIMIZE (🔒 FEATURE 6) ====================
+local isMinimized = false
+safeConnect(MinBtn.MouseButton1Click, function()
+    isMinimized = not isMinimized
+    BlurBg.Enabled = not isMinimized
+    
+    if isMinimized then
+        -- ขั้นตอนปิด: Fade ซ่อนองค์ประกอบภายในก่อนอย่างนุ่มนวล
+        Sidebar.Visible = false ContentArea.Visible = false TitleLabel.Visible = false InfoFPSLabel.Visible = false MinBtn.Text = "+"
+        MinimizedStatusLabel.Visible = true MinimizedStatusLabel.TextTransparency = 1
+        
+        -- บิดองศาโครงร่างหน้าต่างเล็กน้อยเพิ่มความรู้สึกแบบ Premium Premium (Rotation 2.5)
+        TweenService:Create(MainFrame, TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, 180, 0, 65), Rotation = 2.5}):Play()
+        TweenService:Create(MinimizedStatusLabel, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
+        MinBtn:TweenPosition(UDim2.new(1, -33, 0, 6), Enum.EasingDirection.Out, Enum.EasingStyle.Quint, 0.4)
+    else
+        -- ขั้นตอนเปิด: คลายบิดองศากลับมาเป็นหน้าต่างตรงราบรื่นราบเรียบ (Rotation 0)
+        MinBtn.Text = "-" MinimizedStatusLabel.Visible = false
+        TweenService:Create(MainFrame, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 320, 0, 260), Rotation = 0}):Play()
+        MinBtn:TweenPosition(UDim2.new(1, -35, 0.5, -12), Enum.EasingDirection.Out, Enum.EasingStyle.Quint, 0.4)
+        task.delay(0.25, function() if not isMinimized then TitleLabel.Visible = true InfoFPSLabel.Visible = true Sidebar.Visible = true ContentArea.Visible = true end end)
+    end
+end)
+
+-- ==================== 📈 LOOP BUFFER SYSTEM (🔒 FEATURE 1) ====================
+local nextUpdate = 0 local fpsBuffer = {}
+safeConnect(RunService.RenderStepped, function(dt)
+    nextUpdate = nextUpdate + dt
+    
+    -- ใส่ค่าเข้า Buffer แถวเรียงลำดับลึกซึ้ง (Moving Average Calculation)
+    table.insert(fpsBuffer, 1 / dt)
+    if #fpsBuffer > 45 then table.remove(fpsBuffer, 1) end -- บัฟเฟอร์สมดุลที่ 45 เฟรม
+    
+    if not isMinimized then
+        local shimmerTime = os.clock()
+        GlassGradient.Offset = Vector2.new(math.sin(shimmerTime * 1.5) * 0.3, math.cos(shimmerTime * 1.5) * 0.3)
+    end
+    if rainbowActive then
+        rainbowHue = (rainbowHue + dt * 80) % 360 local col = Color3.fromHSV(rainbowHue/360, 1, 1) local col2 = Color3.fromHSV(((rainbowHue+120)%360)/360, 1, 1)
+        UIGradientStroke.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, col), ColorSequenceKeypoint.new(0.5, col2), ColorSequenceKeypoint.new(1, col)})
+        BorderColorNow = col activeThemeLabel.TextColor3 = col if activeTabButton then activeTabButton.BackgroundColor3 = col end
+    end
+    if nextUpdate >= 0.25 then
+        -- คำนวณหาค่าเฉลี่ยตัวเลขความนิ่งตัวนับเฟรมเรตที่แม่นยำ
+        local sum = 0 for _, v in ipairs(fpsBuffer) do sum = sum + v end
+        local stableFps = math.floor(sum / #fpsBuffer)
+        if stableFps > 999 or stableFps < 1 then stableFps = 60 end
+        
+        InfoFPSLabel.Text = "FPS: " .. stableFps
+        if isMinimized then MinimizedStatusLabel.Text = ModeText MinimizedStatusLabel.TextColor3 = BorderColorNow end
+        if not rainbowActive then TweenService:Create(UIStroke, TweenInfo.new(0.25), {Color = BorderColorNow}):Play() end
+        nextUpdate = 0
+    end
+end)
+
+-- INITIALIZE GRID SETTINGS & CONFIGS
+applyTheme(currentThemeIndex)
+task.spawn(runIntroAnimation)
+switchTab(TabGfx, tabButtons[1])
+print("STELLARHUP v6.8 PRODUCTION COMPLETED READY TO EXECUTE.")
