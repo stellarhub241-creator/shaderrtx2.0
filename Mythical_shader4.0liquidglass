@@ -1,12 +1,15 @@
--- [[ STELLARHUB: MYTHICAL SHADER v4.5 SAKURA EDITION ]] --
+-- [[ STELLARHUB: MYTHICAL SHADER v4.6 SAKURA EDITION ]] --
 -- Liquid Glass UI + Flowing Shimmer + Elastic Springs + Smooth Sliding Tabs + Drag-to-Resize
--- [FIXED] Shimmer loop, += syntax, pcall ครอบ SpringPhysics ทุกจุด
+-- [v4.6] Bug fixes: Horror/Rain sync, Heavenly state, canvas auto-size
+--        Rain: particle system + ripple effect
+--        FPS Settings tab: slider 10-120 + 165 button
+--        FPS Popup box: draggable, resizable, spring bounce
 
-local Lighting = game:GetService("Lighting")
-local Terrain = workspace.Terrain
-local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
+local Lighting         = game:GetService("Lighting")
+local Terrain          = workspace.Terrain
+local RunService       = game:GetService("RunService")
+local CoreGui          = game:GetService("CoreGui")
+local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 pcall(function() if setfpscap then setfpscap(165) end end)
@@ -15,26 +18,28 @@ pcall(function()
     if s and s.Rendering then s.Rendering.QualityLevel = Enum.QualityLevel.Level21 end
 end)
 
-Terrain.WaterReflectance = 1
+Terrain.WaterReflectance  = 1
 Terrain.WaterTransparency = 0.55
 
 local oldUI = CoreGui:FindFirstChild("STELLARHUP_MYTHICAL")
 if oldUI then oldUI:Destroy() task.wait(0.1) end
 
 local originalMaterials = {}
-local originalShadows = {}
-local isFpsBoostOn = false
-local pbrEnabled = true
-local dofEnabled = true
-local antiBlueGloss = true
-local horrorFogEnabled = false
-local rainEnabled = false
+local originalShadows   = {}
+local isFpsBoostOn      = false
+local pbrEnabled        = true
+local dofEnabled        = true
+local antiBlueGloss     = true
+local horrorFogEnabled  = false
+local rainEnabled       = false
+local heavenlyEnabled   = false
 local currentThemeIndex = 1
+local targetFpsCap      = 60
 
 local originalFogStart = Lighting.FogStart
-local originalFogEnd = Lighting.FogEnd
+local originalFogEnd   = Lighting.FogEnd
 local originalFogColor = Lighting.FogColor
-local originalAmbient = Lighting.Ambient
+local originalAmbient  = Lighting.Ambient
 
 local COLOR_THEMES = {
     { name="Purple", primary=Color3.fromRGB(180,0,255),   secondary=Color3.fromRGB(0,220,255),   text=Color3.fromRGB(220,180,255) },
@@ -45,10 +50,10 @@ local COLOR_THEMES = {
 }
 
 local SKY_PRESETS = {
-    COSMIC   = { name="Nebula Space", bk="rbxassetid://152703816",   dn="rbxassetid://152703803",   ft="rbxassetid://152703813",   lf="rbxassetid://152703806",   rt="rbxassetid://152703812",   up="rbxassetid://152703811",   star=10000, time=18   },
-    PASTEL   = { name="Pastel Sky",   bk="rbxassetid://10143500350", dn="rbxassetid://10143500350", ft="rbxassetid://10143500350", lf="rbxassetid://10143500350", rt="rbxassetid://10143500350", up="rbxassetid://10143500350", star=100,   time=7.5  },
-    CYBERPUNK= { name="Neon Cyber",   bk="rbxassetid://252703816",   dn="rbxassetid://252703803",   ft="rbxassetid://252703813",   lf="rbxassetid://252703806",   rt="rbxassetid://252703812",   up="rbxassetid://252703811",   star=5000,  time=17.5 },
-    REALISTIC= { name="Realistic Sky",bk="rbxassetid://1079349813",  dn="rbxassetid://1079349813",  ft="rbxassetid://1079349813",  lf="rbxassetid://1079349813",  rt="rbxassetid://1079349813",  up="rbxassetid://1079349813",  star=3000,  time=12   },
+    COSMIC    = { name="Nebula Space",  bk="rbxassetid://152703816",   dn="rbxassetid://152703803",   ft="rbxassetid://152703813",   lf="rbxassetid://152703806",   rt="rbxassetid://152703812",   up="rbxassetid://152703811",   star=10000, time=18   },
+    PASTEL    = { name="Pastel Sky",    bk="rbxassetid://10143500350", dn="rbxassetid://10143500350", ft="rbxassetid://10143500350", lf="rbxassetid://10143500350", rt="rbxassetid://10143500350", up="rbxassetid://10143500350", star=100,   time=7.5  },
+    CYBERPUNK = { name="Neon Cyber",    bk="rbxassetid://252703816",   dn="rbxassetid://252703803",   ft="rbxassetid://252703813",   lf="rbxassetid://252703806",   rt="rbxassetid://252703812",   up="rbxassetid://252703811",   star=5000,  time=17.5 },
+    REALISTIC = { name="Realistic Sky", bk="rbxassetid://1079349813",  dn="rbxassetid://1079349813",  ft="rbxassetid://1079349813",  lf="rbxassetid://1079349813",  rt="rbxassetid://1079349813",  up="rbxassetid://1079349813",  star=3000,  time=12   },
 }
 
 for _, v in pairs(Lighting:GetChildren()) do
@@ -56,12 +61,12 @@ for _, v in pairs(Lighting:GetChildren()) do
 end
 
 local Sky = Instance.new("Sky", Lighting)
-Sky.Name = "StellarSky"
-Sky.SunTextureId = "rbxassetid://1079349813"
-Sky.SunAngularSize = 21
-Sky.MoonTextureId = "rbxassetid://6444320592"
-Sky.MoonAngularSize = 11
-Sky.StarCount = 8000
+Sky.Name                = "StellarSky"
+Sky.SunTextureId        = "rbxassetid://1079349813"
+Sky.SunAngularSize      = 21
+Sky.MoonTextureId       = "rbxassetid://6444320592"
+Sky.MoonAngularSize     = 11
+Sky.StarCount           = 8000
 Sky.CelestialBodiesShown = true
 
 local Atmosphere      = Instance.new("Atmosphere", Lighting)
@@ -69,40 +74,40 @@ local ColorCorrection = Instance.new("ColorCorrectionEffect", Lighting)
 local Bloom           = Instance.new("BloomEffect", Lighting)
 local SunRays         = Instance.new("SunRaysEffect", Lighting)
 local DOF             = Instance.new("DepthOfFieldEffect", Lighting)
-DOF.Name = "StellarDOF"
-DOF.NearIntensity = 0
-DOF.FocusDistance = 35
-DOF.InFocusRadius = 20
-DOF.Enabled = dofEnabled
+DOF.Name            = "StellarDOF"
+DOF.NearIntensity   = 0
+DOF.FocusDistance   = 35
+DOF.InFocusRadius   = 20
+DOF.Enabled         = dofEnabled
 
 local PROFILES = {
-    DAWN   = { brightness=1.6,  exposure=0.15,  shadow=0.2,  ambient=Color3.fromRGB(50,35,55),  atmoColor=Color3.fromRGB(180,120,160), atmoDecay=Color3.fromRGB(80,40,80),   atmoGlare=1.0, atmoHaze=1.8, atmoDensity=0.3,  contrast=0.25, saturation=0.4,  tint=Color3.fromRGB(255,210,220), bloom=0.5,  bloomSize=18, bloomThreshold=0.7,  dofFar=0.3, sunRays=0.2  },
-    DAY    = { brightness=1.5,  exposure=0.1,   shadow=0.3,  ambient=Color3.fromRGB(50,50,60),  atmoColor=Color3.fromRGB(185,215,255), atmoDecay=Color3.fromRGB(110,120,140),atmoGlare=1.2, atmoHaze=1.2, atmoDensity=0.25, contrast=0.35, saturation=0.45, tint=Color3.fromRGB(255,235,200), bloom=0.35, bloomSize=16, bloomThreshold=0.85, dofFar=0.2, sunRays=0.25 },
-    GOLDEN = { brightness=2.2,  exposure=0.2,   shadow=0.2,  ambient=Color3.fromRGB(80,50,30),  atmoColor=Color3.fromRGB(255,130,50),  atmoDecay=Color3.fromRGB(150,60,10),  atmoGlare=2.0, atmoHaze=2.0, atmoDensity=0.35, contrast=0.35, saturation=0.7,  tint=Color3.fromRGB(255,200,130), bloom=0.5,  bloomSize=18, bloomThreshold=0.65, dofFar=0.4, sunRays=0.45 },
-    NIGHT  = { brightness=1.8,  exposure=0.18,  shadow=0.25, ambient=Color3.fromRGB(20,28,55),  atmoColor=Color3.fromRGB(20,35,80),   atmoDecay=Color3.fromRGB(10,15,40),   atmoGlare=0.5, atmoHaze=1.5, atmoDensity=0.35, contrast=0.35, saturation=0.4,  tint=Color3.fromRGB(200,220,255), bloom=1.0,  bloomSize=22, bloomThreshold=0.4,  dofFar=0.4, sunRays=0.1  },
-    RAIN     = { brightness=0.8,  exposure=-0.1,  shadow=0.5,  ambient=Color3.fromRGB(40,45,55),  atmoColor=Color3.fromRGB(120,130,150), atmoDecay=Color3.fromRGB(60,65,75),   atmoGlare=0.2, atmoHaze=3.5, atmoDensity=0.6,  contrast=0.1,  saturation=-0.1, tint=Color3.fromRGB(200,215,230), bloom=0.2,  bloomSize=12, bloomThreshold=0.9,  dofFar=0.5, sunRays=0.0  },
-    HEAVENLY = { brightness=2.5,  exposure=0.3,   shadow=0.1,  ambient=Color3.fromRGB(200,210,255), atmoColor=Color3.fromRGB(220,235,255), atmoDecay=Color3.fromRGB(180,200,255),atmoGlare=2.5, atmoHaze=0.8, atmoDensity=0.1,  contrast=0.2,  saturation=0.5,  tint=Color3.fromRGB(255,245,220), bloom=1.2,  bloomSize=28, bloomThreshold=0.45, dofFar=0.1, sunRays=0.6  },
+    DAWN     = { brightness=1.6,  exposure=0.15,  shadow=0.2,  ambient=Color3.fromRGB(50,35,55),    atmoColor=Color3.fromRGB(180,120,160), atmoDecay=Color3.fromRGB(80,40,80),    atmoGlare=1.0, atmoHaze=1.8, atmoDensity=0.3,  contrast=0.25, saturation=0.4,  tint=Color3.fromRGB(255,210,220), bloom=0.5,  bloomSize=18, bloomThreshold=0.7,  dofFar=0.3, sunRays=0.2  },
+    DAY      = { brightness=1.5,  exposure=0.1,   shadow=0.3,  ambient=Color3.fromRGB(50,50,60),    atmoColor=Color3.fromRGB(185,215,255), atmoDecay=Color3.fromRGB(110,120,140), atmoGlare=1.2, atmoHaze=1.2, atmoDensity=0.25, contrast=0.35, saturation=0.45, tint=Color3.fromRGB(255,235,200), bloom=0.35, bloomSize=16, bloomThreshold=0.85, dofFar=0.2, sunRays=0.25 },
+    GOLDEN   = { brightness=2.2,  exposure=0.2,   shadow=0.2,  ambient=Color3.fromRGB(80,50,30),    atmoColor=Color3.fromRGB(255,130,50),  atmoDecay=Color3.fromRGB(150,60,10),   atmoGlare=2.0, atmoHaze=2.0, atmoDensity=0.35, contrast=0.35, saturation=0.7,  tint=Color3.fromRGB(255,200,130), bloom=0.5,  bloomSize=18, bloomThreshold=0.65, dofFar=0.4, sunRays=0.45 },
+    NIGHT    = { brightness=1.8,  exposure=0.18,  shadow=0.25, ambient=Color3.fromRGB(20,28,55),    atmoColor=Color3.fromRGB(20,35,80),   atmoDecay=Color3.fromRGB(10,15,40),    atmoGlare=0.5, atmoHaze=1.5, atmoDensity=0.35, contrast=0.35, saturation=0.4,  tint=Color3.fromRGB(200,220,255), bloom=1.0,  bloomSize=22, bloomThreshold=0.4,  dofFar=0.4, sunRays=0.1  },
+    RAIN     = { brightness=0.65, exposure=-0.15, shadow=0.6,  ambient=Color3.fromRGB(35,40,52),    atmoColor=Color3.fromRGB(100,115,140), atmoDecay=Color3.fromRGB(50,58,72),    atmoGlare=0.1, atmoHaze=4.5, atmoDensity=0.72, contrast=0.05, saturation=-0.25,tint=Color3.fromRGB(185,205,230), bloom=0.3,  bloomSize=10, bloomThreshold=0.92, dofFar=0.65,sunRays=0.0  },
+    HEAVENLY = { brightness=2.5,  exposure=0.3,   shadow=0.1,  ambient=Color3.fromRGB(200,210,255), atmoColor=Color3.fromRGB(220,235,255), atmoDecay=Color3.fromRGB(180,200,255), atmoGlare=2.5, atmoHaze=0.8, atmoDensity=0.1,  contrast=0.2,  saturation=0.5,  tint=Color3.fromRGB(255,245,220), bloom=1.2,  bloomSize=28, bloomThreshold=0.45, dofFar=0.1, sunRays=0.6  },
 }
 
 local function applyProfile(p)
-    if isFpsBoostOn or horrorFogEnabled or rainEnabled then return end
-    Lighting.Brightness = p.brightness
-    Lighting.ExposureCompensation = p.exposure
-    Lighting.ShadowSoftness = p.shadow
-    Lighting.OutdoorAmbient = p.ambient
-    Atmosphere.Color = p.atmoColor
-    Atmosphere.Decay = p.atmoDecay
-    Atmosphere.Glare = p.atmoGlare
-    Atmosphere.Haze = p.atmoHaze
-    Atmosphere.Density = p.atmoDensity
-    ColorCorrection.Contrast = p.contrast
-    ColorCorrection.Saturation = p.saturation
-    ColorCorrection.TintColor = p.tint
-    Bloom.Intensity = p.bloom
-    Bloom.Size = p.bloomSize
-    Bloom.Threshold = p.bloomThreshold
-    DOF.FarIntensity = p.dofFar
-    SunRays.Intensity = p.sunRays
+    if isFpsBoostOn or horrorFogEnabled or rainEnabled or heavenlyEnabled then return end
+    Lighting.Brightness            = p.brightness
+    Lighting.ExposureCompensation  = p.exposure
+    Lighting.ShadowSoftness        = p.shadow
+    Lighting.OutdoorAmbient        = p.ambient
+    Atmosphere.Color               = p.atmoColor
+    Atmosphere.Decay               = p.atmoDecay
+    Atmosphere.Glare               = p.atmoGlare
+    Atmosphere.Haze                = p.atmoHaze
+    Atmosphere.Density             = p.atmoDensity
+    ColorCorrection.Contrast       = p.contrast
+    ColorCorrection.Saturation     = p.saturation
+    ColorCorrection.TintColor      = p.tint
+    Bloom.Intensity                = p.bloom
+    Bloom.Size                     = p.bloomSize
+    Bloom.Threshold                = p.bloomThreshold
+    DOF.FarIntensity               = p.dofFar
+    SunRays.Intensity              = p.sunRays
 end
 
 local function lerpN(a,b,t) return a+(b-a)*t end
@@ -121,29 +126,117 @@ local function lerpProfile(a,b,t)
     }
 end
 
-local ModeText = "Status: Loading..."
+-- ==================== RAIN PARTICLE SYSTEM ====================
+local rainFolder = nil
+local rainConnections = {}
+
+local function clearRainParticles()
+    for _, c in pairs(rainConnections) do pcall(function() c:Disconnect() end) end
+    rainConnections = {}
+    if rainFolder and rainFolder.Parent then rainFolder:Destroy() end
+    rainFolder = nil
+end
+
+local function createRainParticles()
+    clearRainParticles()
+    rainFolder = Instance.new("Folder", workspace)
+    rainFolder.Name = "StellarRain"
+    local camera = workspace.CurrentCamera
+    local RAIN_COUNT = 80
+    local parts = {}
+    for i = 1, RAIN_COUNT do
+        local p = Instance.new("Part")
+        p.Name             = "RainDrop"..i
+        p.Size             = Vector3.new(0.04, math.random(8,18)*0.1, 0.04)
+        p.Material         = Enum.Material.Neon
+        p.Color            = Color3.fromRGB(math.random(160,200), math.random(200,230), 255)
+        p.Transparency     = math.random(55,80)/100
+        p.CastShadow       = false
+        p.Anchored         = true
+        p.CanCollide       = false
+        p.Parent           = rainFolder
+        table.insert(parts, p)
+    end
+    local RIPPLE_COUNT = 12
+    local ripples = {}
+    for i = 1, RIPPLE_COUNT do
+        local r = Instance.new("Part")
+        r.Name         = "Ripple"..i
+        r.Size         = Vector3.new(0.5, 0.05, 0.5)
+        r.Material     = Enum.Material.Neon
+        r.Color        = Color3.fromRGB(180,210,255)
+        r.Transparency = 0.85
+        r.CastShadow   = false
+        r.Anchored     = true
+        r.CanCollide   = false
+        r.Shape        = Enum.PartType.Cylinder
+        r.Parent       = rainFolder
+        table.insert(ripples, r)
+    end
+    local conn = RunService.RenderStepped:Connect(function(dt)
+        if not rainFolder or not rainFolder.Parent then return end
+        local camPos = camera.CFrame.Position
+        for i, p in ipairs(parts) do
+            if not p.Parent then continue end
+            local spread = 30
+            local x = camPos.X + math.sin(i*1.3)*spread + math.sin(tick()*0.3+i)*3
+            local y = camPos.Y + 18 - ((tick()*14 + i*2.1) % 28)
+            local z = camPos.Z + math.cos(i*1.7)*spread + math.cos(tick()*0.25+i)*3
+            p.CFrame = CFrame.new(x, y, z) * CFrame.Angles(0.1, 0, 0)
+        end
+        for i, r in ipairs(ripples) do
+            if not r.Parent then continue end
+            local t = (tick()*0.8 + i*0.9) % 1
+            local scale = 0.4 + t*2.5
+            local alpha = 1 - t
+            local rx = camPos.X + math.sin(i*2.1)*20
+            local rz = camPos.Z + math.cos(i*1.9)*20
+            local ray = workspace:Raycast(Vector3.new(rx, camPos.Y+5, rz), Vector3.new(0,-30,0))
+            local ry = ray and ray.Position.Y + 0.05 or camPos.Y - 8
+            r.CFrame = CFrame.new(rx, ry, rz) * CFrame.Angles(0, 0, math.pi/2)
+            r.Size = Vector3.new(0.05, scale, scale)
+            r.Transparency = 0.7 + alpha*0.25
+            r.Color = Color3.fromRGB(
+                math.floor(lerpN(160,200,alpha)),
+                math.floor(lerpN(190,225,alpha)),
+                255
+            )
+        end
+    end)
+    table.insert(rainConnections, conn)
+end
+
+-- ==================== MODE RESET HELPER ====================
+local function resetFogLighting()
+    Lighting.FogStart  = originalFogStart
+    Lighting.FogEnd    = originalFogEnd
+    Lighting.FogColor  = originalFogColor
+    Lighting.Ambient   = originalAmbient
+end
+
+local ModeText       = "Status: Loading..."
 local BorderColorNow = Color3.fromRGB(180,0,255)
-local rainbowHue = 0
+local rainbowHue     = 0
 
 task.spawn(function()
     while task.wait(0.2) do
-        if not horrorFogEnabled and not rainEnabled then
+        if not horrorFogEnabled and not rainEnabled and not heavenlyEnabled then
             local t = Lighting.ClockTime
             if t >= 5 and t < 6 then
                 applyProfile(lerpProfile(PROFILES.NIGHT,PROFILES.DAWN,(t-5)/1))
-                ModeText = "Status: Dawn" BorderColorNow = Color3.fromRGB(255,180,200)
+                ModeText = "Status: Dawn"         BorderColorNow = Color3.fromRGB(255,180,200)
             elseif t >= 6 and t < 15 then
                 applyProfile(PROFILES.DAY)
-                ModeText = "Status: Day" BorderColorNow = Color3.fromRGB(255,220,100)
+                ModeText = "Status: Day"          BorderColorNow = Color3.fromRGB(255,220,100)
             elseif t >= 15 and t < 19 then
                 applyProfile(lerpProfile(PROFILES.DAY,PROFILES.GOLDEN,(t-15)/4))
-                ModeText = "Status: Golden Hour" BorderColorNow = Color3.fromRGB(255,160,80)
+                ModeText = "Status: Golden Hour"  BorderColorNow = Color3.fromRGB(255,160,80)
             elseif t >= 19 and t < 21 then
                 applyProfile(lerpProfile(PROFILES.GOLDEN,PROFILES.NIGHT,(t-19)/2))
-                ModeText = "Status: Sunset" BorderColorNow = Color3.fromRGB(150,180,255)
+                ModeText = "Status: Sunset"       BorderColorNow = Color3.fromRGB(150,180,255)
             else
                 applyProfile(PROFILES.NIGHT)
-                ModeText = "Status: Night" BorderColorNow = Color3.fromRGB(100,180,255)
+                ModeText = "Status: Night"        BorderColorNow = Color3.fromRGB(100,180,255)
             end
         end
     end
@@ -169,7 +262,7 @@ local function applyPBROnPart(v)
         elseif m == Enum.Material.Grass then r = 0.0
         end
         if antiBlueGloss then
-            local c = v.Color
+            local c   = v.Color
             local lum = (c.R*0.299)+(c.G*0.587)+(c.B*0.114)
             v.Reflectance = lum < 0.18 and r*(lum*3.5) or r
         else
@@ -182,7 +275,7 @@ local function runPBRScan()
     local count = 0
     for _, v in pairs(workspace:GetDescendants()) do
         applyPBROnPart(v)
-        count = count + 1  -- [FIXED] เปลี่ยนจาก += เป็น = count + 1
+        count = count + 1
         if count % 200 == 0 then task.wait() end
     end
 end
@@ -193,120 +286,115 @@ end)
 
 -- ==================== UI BUILD ====================
 local ScreenGui = Instance.new("ScreenGui", CoreGui)
-ScreenGui.Name = "STELLARHUP_MYTHICAL"
-ScreenGui.ResetOnSpawn = false
+ScreenGui.Name          = "STELLARHUP_MYTHICAL"
+ScreenGui.ResetOnSpawn  = false
 ScreenGui.IgnoreGuiInset = true
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0,320,0,260)
-MainFrame.Position = UDim2.new(0.5,-160,0.4,-130)
-MainFrame.BackgroundColor3 = Color3.fromRGB(12,10,18)
+MainFrame.Size                  = UDim2.new(0,320,0,260)
+MainFrame.Position              = UDim2.new(0.5,-160,0.4,-130)
+MainFrame.BackgroundColor3      = Color3.fromRGB(12,10,18)
 MainFrame.BackgroundTransparency = 0.4
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.ClipsDescendants = true
+MainFrame.BorderSizePixel       = 0
+MainFrame.Active                = true
+MainFrame.ClipsDescendants      = true
 Instance.new("UICorner",MainFrame).CornerRadius = UDim.new(0,14)
 
--- [FIXED] Shimmer loop ลด frequency เป็น 0.05 วิ ป้องกัน Delta throttle
 local GlassShimmer = Instance.new("Frame", MainFrame)
-GlassShimmer.Size = UDim2.new(1.5,0,0,2)
-GlassShimmer.Position = UDim2.new(-0.25,0,0,1)
+GlassShimmer.Size            = UDim2.new(1.5,0,0,2)
+GlassShimmer.Position        = UDim2.new(-0.25,0,0,1)
 GlassShimmer.BorderSizePixel = 0
 local ShimGrad = Instance.new("UIGradient", GlassShimmer)
 ShimGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(255,255,255)),
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(255,255,255)),
     ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150,220,255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(255,255,255))
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(255,255,255))
 })
 task.spawn(function()
-    while task.wait(0.05) do  -- [FIXED] 0.01 -> 0.05
+    while task.wait(0.05) do
         if MainFrame and MainFrame.Parent then
-            pcall(function()
-                ShimGrad.Offset = Vector2.new(math.sin(tick()*1.5)*0.5, 0)
-            end)
+            pcall(function() ShimGrad.Offset = Vector2.new(math.sin(tick()*1.5)*0.5, 0) end)
         else break end
     end
 end)
 
 local UIStroke = Instance.new("UIStroke", MainFrame)
-UIStroke.Thickness = 1.8
-UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-UIStroke.Color = Color3.fromRGB(180,0,255)
+UIStroke.Thickness         = 1.8
+UIStroke.ApplyStrokeMode   = Enum.ApplyStrokeMode.Border
+UIStroke.Color             = Color3.fromRGB(180,0,255)
 local UIGradientStroke = Instance.new("UIGradient", UIStroke)
 UIGradientStroke.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0,   Color3.fromRGB(255,182,217)),
-    ColorSequenceKeypoint.new(0.33,Color3.fromRGB(180,0,255)),
-    ColorSequenceKeypoint.new(0.66,Color3.fromRGB(0,220,255)),
-    ColorSequenceKeypoint.new(1,   Color3.fromRGB(255,182,217))
+    ColorSequenceKeypoint.new(0,    Color3.fromRGB(255,182,217)),
+    ColorSequenceKeypoint.new(0.33, Color3.fromRGB(180,0,255)),
+    ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0,220,255)),
+    ColorSequenceKeypoint.new(1,    Color3.fromRGB(255,182,217))
 })
 
 local TitleBar = Instance.new("Frame", MainFrame)
-TitleBar.Size = UDim2.new(1,0,0,35)
+TitleBar.Size                  = UDim2.new(1,0,0,35)
 TitleBar.BackgroundTransparency = 1
 
 local TitleLabel = Instance.new("TextLabel", TitleBar)
-TitleLabel.Size = UDim2.new(0.6,0,1,0)
-TitleLabel.Position = UDim2.new(0,15,0,0)
+TitleLabel.Size                 = UDim2.new(0.55,0,1,0)
+TitleLabel.Position             = UDim2.new(0,15,0,0)
 TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "MYTHICAL SHADER v4.5"
-TitleLabel.TextColor3 = Color3.fromRGB(255,255,255)
-TitleLabel.TextSize = 13
-TitleLabel.Font = Enum.Font.Code
-TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Text                 = "MYTHICAL SHADER v4.6"
+TitleLabel.TextColor3           = Color3.fromRGB(255,255,255)
+TitleLabel.TextSize             = 13
+TitleLabel.Font                 = Enum.Font.Code
+TitleLabel.TextXAlignment       = Enum.TextXAlignment.Left
 
 local MinBtn = Instance.new("TextButton", TitleBar)
-MinBtn.Size = UDim2.new(0,25,0,25)
-MinBtn.Position = UDim2.new(1,-35,0.5,-12)
-MinBtn.BackgroundColor3 = Color3.fromRGB(30,25,45)
+MinBtn.Size                 = UDim2.new(0,25,0,25)
+MinBtn.Position             = UDim2.new(1,-35,0.5,-12)
+MinBtn.BackgroundColor3     = Color3.fromRGB(30,25,45)
 MinBtn.BackgroundTransparency = 0.3
-MinBtn.Text = "-"
-MinBtn.TextColor3 = Color3.fromRGB(0,220,255)
-MinBtn.Font = Enum.Font.Code
-MinBtn.TextSize = 14
+MinBtn.Text                 = "-"
+MinBtn.TextColor3           = Color3.fromRGB(0,220,255)
+MinBtn.Font                 = Enum.Font.Code
+MinBtn.TextSize             = 14
 Instance.new("UICorner",MinBtn).CornerRadius = UDim.new(0,6)
 
--- [FIX] FPS label กล่องชัดเจน ไม่ชน force touch + ขอบ Sakura
 local InfoFPSLabel = Instance.new("TextLabel", TitleBar)
-InfoFPSLabel.Size = UDim2.new(0,58,0,24)
-InfoFPSLabel.Position = UDim2.new(1,-150,0.5,-12)
+InfoFPSLabel.Size                 = UDim2.new(0,58,0,24)
+InfoFPSLabel.Position             = UDim2.new(1,-150,0.5,-12)
 InfoFPSLabel.BackgroundTransparency = 1
-InfoFPSLabel.Text = "FPS: --"
-InfoFPSLabel.TextColor3 = Color3.fromRGB(0,255,120)
-InfoFPSLabel.TextSize = 12
-InfoFPSLabel.Font = Enum.Font.Code
-InfoFPSLabel.TextXAlignment = Enum.TextXAlignment.Center
-InfoFPSLabel.ZIndex = 5
+InfoFPSLabel.Text                 = "FPS: --"
+InfoFPSLabel.TextColor3           = Color3.fromRGB(0,255,120)
+InfoFPSLabel.TextSize             = 12
+InfoFPSLabel.Font                 = Enum.Font.Code
+InfoFPSLabel.TextXAlignment       = Enum.TextXAlignment.Center
+InfoFPSLabel.ZIndex               = 5
 Instance.new("UICorner", InfoFPSLabel).CornerRadius = UDim.new(0,6)
 
-
 local MinimizedStatusLabel = Instance.new("TextLabel", TitleBar)
-MinimizedStatusLabel.Size = UDim2.new(1,-24,0,20)
-MinimizedStatusLabel.Position = UDim2.new(0,12,0,32)
+MinimizedStatusLabel.Size                 = UDim2.new(1,-24,0,20)
+MinimizedStatusLabel.Position             = UDim2.new(0,12,0,32)
 MinimizedStatusLabel.BackgroundTransparency = 1
-MinimizedStatusLabel.Text = ""
-MinimizedStatusLabel.TextColor3 = Color3.fromRGB(180,0,255)
-MinimizedStatusLabel.TextSize = 11
-MinimizedStatusLabel.Font = Enum.Font.Code
-MinimizedStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-MinimizedStatusLabel.Visible = false
+MinimizedStatusLabel.Text                 = ""
+MinimizedStatusLabel.TextColor3           = Color3.fromRGB(180,0,255)
+MinimizedStatusLabel.TextSize             = 11
+MinimizedStatusLabel.Font                 = Enum.Font.Code
+MinimizedStatusLabel.TextXAlignment       = Enum.TextXAlignment.Left
+MinimizedStatusLabel.Visible              = false
 
 local Sidebar = Instance.new("Frame", MainFrame)
-Sidebar.Size = UDim2.new(0,95,1,-35)
-Sidebar.Position = UDim2.new(0,0,0,35)
-Sidebar.BackgroundColor3 = Color3.fromRGB(10,8,15)
+Sidebar.Size                  = UDim2.new(0,95,1,-35)
+Sidebar.Position              = UDim2.new(0,0,0,35)
+Sidebar.BackgroundColor3      = Color3.fromRGB(10,8,15)
 Sidebar.BackgroundTransparency = 0.6
-Sidebar.BorderSizePixel = 0
+Sidebar.BorderSizePixel       = 0
 
 local ContentArea = Instance.new("Frame", MainFrame)
-ContentArea.Size = UDim2.new(1,-95,1,-35)
-ContentArea.Position = UDim2.new(0,95,0,35)
+ContentArea.Size                  = UDim2.new(1,-95,1,-35)
+ContentArea.Position              = UDim2.new(0,95,0,35)
 ContentArea.BackgroundTransparency = 1
 
 local function createTabFrame()
     local f = Instance.new("Frame", ContentArea)
-    f.Size = UDim2.new(1,0,1,0)
+    f.Size                  = UDim2.new(1,0,1,0)
     f.BackgroundTransparency = 1
-    f.Visible = false
+    f.Visible               = false
     return f
 end
 
@@ -314,14 +402,14 @@ local TabGfx      = createTabFrame()
 local TabSky      = createTabFrame()
 local TabOptimize = createTabFrame()
 local TabTheme    = createTabFrame()
+local TabFPS      = createTabFrame()
 
--- [FIXED] applySpringPhysics ครอบ pcall ทุกจุด + เซต Scale = 1.0 ก่อนเสมอ
 local function applySpringPhysics(button)
     pcall(function()
         local uiScale = button:FindFirstChildOfClass("UIScale")
         if not uiScale then
-            uiScale = Instance.new("UIScale", button)
-            uiScale.Scale = 1.0  -- [FIXED] เซตค่าเริ่มต้นป้องกัน Delta crash
+            uiScale       = Instance.new("UIScale", button)
+            uiScale.Scale = 1.0
         end
         button.MouseEnter:Connect(function()
             pcall(function()
@@ -353,40 +441,39 @@ local function applySpringPhysics(button)
 end
 
 local tabButtons = {}
-local activeTab = nil
+local activeTab  = nil
 
 local function switchTab(tabFrame, btn)
     if activeTab == tabFrame then return end
     activeTab = tabFrame
-    for _, t in pairs({TabGfx,TabSky,TabOptimize,TabTheme}) do
+    for _, t in pairs({TabGfx,TabSky,TabOptimize,TabTheme,TabFPS}) do
         if t ~= tabFrame then t.Visible = false end
     end
     for _, b in pairs(tabButtons) do
-        b.BackgroundColor3 = Color3.fromRGB(20,16,30)
+        b.BackgroundColor3      = Color3.fromRGB(20,16,30)
         b.BackgroundTransparency = 0.4
-        b.TextColor3 = Color3.fromRGB(180,180,180)
+        b.TextColor3            = Color3.fromRGB(180,180,180)
     end
     tabFrame.Position = UDim2.new(0,30,0,0)
-    tabFrame.Visible = true
+    tabFrame.Visible  = true
     pcall(function()
-        -- bounce slide เข้ามา
         TweenService:Create(tabFrame, TweenInfo.new(0.4,Enum.EasingStyle.Back,Enum.EasingDirection.Out), {Position=UDim2.new(0,0,0,0)}):Play()
     end)
-    btn.BackgroundColor3 = COLOR_THEMES[currentThemeIndex].primary
+    btn.BackgroundColor3      = COLOR_THEMES[currentThemeIndex].primary
     btn.BackgroundTransparency = 0.2
-    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.TextColor3            = Color3.fromRGB(255,255,255)
 end
 
 local function addTabButton(text, order, targetTab)
     local Btn = Instance.new("TextButton", Sidebar)
-    Btn.Size = UDim2.new(1,-10,0,28)
-    Btn.Position = UDim2.new(0,5,0,(order-1)*33+8)
-    Btn.BackgroundColor3 = Color3.fromRGB(20,16,30)
+    Btn.Size                  = UDim2.new(1,-10,0,24)
+    Btn.Position              = UDim2.new(0,5,0,(order-1)*29+8)
+    Btn.BackgroundColor3      = Color3.fromRGB(20,16,30)
     Btn.BackgroundTransparency = 0.4
-    Btn.Text = text
-    Btn.TextColor3 = Color3.fromRGB(180,180,180)
-    Btn.Font = Enum.Font.SourceSansBold
-    Btn.TextSize = 11
+    Btn.Text                  = text
+    Btn.TextColor3            = Color3.fromRGB(180,180,180)
+    Btn.Font                  = Enum.Font.SourceSansBold
+    Btn.TextSize              = 10
     Instance.new("UICorner",Btn).CornerRadius = UDim.new(0,6)
     applySpringPhysics(Btn)
     Btn.MouseButton1Click:Connect(function() switchTab(targetTab,Btn) end)
@@ -398,40 +485,43 @@ local b1 = addTabButton("Graphics", 1, TabGfx)
 local b2 = addTabButton("Skybox",   2, TabSky)
 local b3 = addTabButton("FPS Boost",3, TabOptimize)
 local b4 = addTabButton("Theme",    4, TabTheme)
+local b5 = addTabButton("FPS Cap",  5, TabFPS)
 switchTab(TabGfx, b1)
 
--- ==================== DRAG + GLOW + LONG PRESS ====================
+-- ==================== DRAG ====================
 local dragToggle, dragStart, startPos
-local isDragging = false
-local longPressThread = nil
+local isDragging       = false
+local longPressThread  = nil
 
-local function setGlow(on) end -- glow ถูกปิดแล้ว
-
--- [v4.5] ลากได้ทั้งก้อน UI ไม่ใช่แค่ TitleBar
 MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragToggle = true dragStart = input.Position startPos = MainFrame.Position
-
-        -- Long press → หด UI นิดนึงแล้วเด้งกลับ
+        dragToggle = true
+        dragStart  = input.Position
+        startPos   = MainFrame.Position
+        if longPressThread then
+            pcall(function() task.cancel(longPressThread) end)
+            longPressThread = nil
+        end
         longPressThread = task.delay(0.4, function()
-            pcall(function()
-                TweenService:Create(MainFrame, TweenInfo.new(0.15,Enum.EasingStyle.Back,Enum.EasingDirection.In), {
-                    Size = UDim2.new(MainFrame.Size.X.Scale, MainFrame.Size.X.Offset*0.92,
-                                    MainFrame.Size.Y.Scale, MainFrame.Size.Y.Offset*0.92)
-                }):Play()
-                task.wait(0.15)
-                TweenService:Create(MainFrame, TweenInfo.new(0.3,Enum.EasingStyle.Back,Enum.EasingDirection.Out), {
-                    Size = UDim2.new(MainFrame.Size.X.Scale, MainFrame.Size.X.Offset/0.92,
-                                    MainFrame.Size.Y.Scale, MainFrame.Size.Y.Offset/0.92)
-                }):Play()
-            end)
+            if not isDragging then
+                pcall(function()
+                    local ox = MainFrame.Size.X.Offset
+                    local oy = MainFrame.Size.Y.Offset
+                    TweenService:Create(MainFrame, TweenInfo.new(0.15,Enum.EasingStyle.Back,Enum.EasingDirection.In), {
+                        Size = UDim2.new(0, ox*0.92, 0, oy*0.92)
+                    }):Play()
+                    task.wait(0.15)
+                    TweenService:Create(MainFrame, TweenInfo.new(0.3,Enum.EasingStyle.Back,Enum.EasingDirection.Out), {
+                        Size = UDim2.new(0, ox, 0, oy)
+                    }):Play()
+                end)
+            end
+            longPressThread = nil
         end)
-
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
-                dragToggle = false
-                isDragging = false
-                setGlow(false)
+                dragToggle  = false
+                isDragging  = false
                 if longPressThread then
                     pcall(function() task.cancel(longPressThread) end)
                     longPressThread = nil
@@ -446,8 +536,6 @@ UserInputService.InputChanged:Connect(function(input)
         local delta = input.Position - dragStart
         if not isDragging and (math.abs(delta.X) > 3 or math.abs(delta.Y) > 3) then
             isDragging = true
-            setGlow(true)
-            -- ยกเลิก long press ถ้าเริ่มลาก
             if longPressThread then
                 pcall(function() task.cancel(longPressThread) end)
                 longPressThread = nil
@@ -464,42 +552,33 @@ local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     if isMinimized then
-        -- ซ่อนทุกอย่างก่อน
-        TitleLabel.Visible = false
-        MinimizedStatusLabel.Visible = false
-        Sidebar.Visible = false
-        ContentArea.Visible = false
-        MinBtn.Text = "+"
-
-        -- จัด FPS ไว้กลาง
-        InfoFPSLabel.Size = UDim2.new(0,80,0,30)
-        InfoFPSLabel.Position = UDim2.new(0.5,-40,0.5,-15)
-        InfoFPSLabel.TextXAlignment = Enum.TextXAlignment.Center
-        InfoFPSLabel.TextSize = 14
-        InfoFPSLabel.Visible = true
-
-        -- ย่อเหลือแค่กล่อง FPS เล็กๆ
+        TitleLabel.Visible            = false
+        MinimizedStatusLabel.Visible  = false
+        Sidebar.Visible               = false
+        ContentArea.Visible           = false
+        MinBtn.Text                   = "+"
+        InfoFPSLabel.Size             = UDim2.new(0,80,0,30)
+        InfoFPSLabel.Position         = UDim2.new(0.5,-40,0.5,-15)
+        InfoFPSLabel.TextXAlignment   = Enum.TextXAlignment.Center
+        InfoFPSLabel.TextSize         = 14
+        InfoFPSLabel.Visible          = true
         MainFrame:TweenSize(UDim2.new(0,90,0,38), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.5, true)
-        MinBtn.Position = UDim2.new(1,-28,0.5,-10)
+        MinBtn.Position               = UDim2.new(1,-28,0.5,-10)
     else
-        -- ซ่อนก่อน tween
-        InfoFPSLabel.Visible = false
-        MinBtn.Text = "-"
-
-        -- คืนค่า FPS label
-        InfoFPSLabel.Size = UDim2.new(0,58,0,24)
+        InfoFPSLabel.Visible  = false
+        MinBtn.Text           = "-"
+        InfoFPSLabel.Size     = UDim2.new(0,58,0,24)
         InfoFPSLabel.Position = UDim2.new(1,-150,0.5,-12)
         InfoFPSLabel.TextXAlignment = Enum.TextXAlignment.Center
         InfoFPSLabel.TextSize = 12
-
         MainFrame:TweenSize(UDim2.new(0,320,0,260), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.5, true)
-        MinBtn.Position = UDim2.new(1,-35,0.5,-12)
-
+        MinBtn.Position       = UDim2.new(1,-35,0.5,-12)
         task.delay(0.2, function()
-            Sidebar.Visible = true
-            ContentArea.Visible = true
-            TitleLabel.Visible = true
-            InfoFPSLabel.Visible = true
+            Sidebar.Visible       = true
+            ContentArea.Visible   = true
+            TitleLabel.Visible    = true
+            InfoFPSLabel.Visible  = true
+            MinimizedStatusLabel.Visible = false
         end)
     end
 end)
@@ -507,23 +586,26 @@ end)
 -- ==================== TOGGLE HELPER ====================
 local function createToggle(parent, text, order, defaultVal, callback)
     local Frame = Instance.new("Frame", parent)
-    Frame.Size = UDim2.new(1,-20,0,30)
-    Frame.Position = UDim2.new(0,10,0,(order-1)*35+8)
+    Frame.Size                  = UDim2.new(1,-20,0,30)
+    Frame.Position              = UDim2.new(0,10,0,(order-1)*35+8)
     Frame.BackgroundTransparency = 1
     local Label = Instance.new("TextLabel", Frame)
-    Label.Size = UDim2.new(0.65,0,1,0)
+    Label.Size                  = UDim2.new(0.65,0,1,0)
     Label.BackgroundTransparency = 1
-    Label.Text = text Label.TextColor3 = Color3.fromRGB(220,220,220)
-    Label.TextSize = 11 Label.Font = Enum.Font.SourceSans
-    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Text                  = text
+    Label.TextColor3            = Color3.fromRGB(220,220,220)
+    Label.TextSize              = 11
+    Label.Font                  = Enum.Font.SourceSans
+    Label.TextXAlignment        = Enum.TextXAlignment.Left
     local ToggleBtn = Instance.new("TextButton", Frame)
-    ToggleBtn.Size = UDim2.new(0,45,0,20)
-    ToggleBtn.Position = UDim2.new(1,-45,0.5,-10)
-    ToggleBtn.BackgroundColor3 = defaultVal and COLOR_THEMES[currentThemeIndex].primary or Color3.fromRGB(40,30,55)
+    ToggleBtn.Size                  = UDim2.new(0,45,0,20)
+    ToggleBtn.Position              = UDim2.new(1,-45,0.5,-10)
+    ToggleBtn.BackgroundColor3      = defaultVal and COLOR_THEMES[currentThemeIndex].primary or Color3.fromRGB(40,30,55)
     ToggleBtn.BackgroundTransparency = 0.2
-    ToggleBtn.Text = defaultVal and "ON" or "OFF"
-    ToggleBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    ToggleBtn.Font = Enum.Font.SourceSansBold ToggleBtn.TextSize = 10
+    ToggleBtn.Text                  = defaultVal and "ON" or "OFF"
+    ToggleBtn.TextColor3            = Color3.fromRGB(255,255,255)
+    ToggleBtn.Font                  = Enum.Font.SourceSansBold
+    ToggleBtn.TextSize              = 10
     Instance.new("UICorner",ToggleBtn).CornerRadius = UDim.new(0,10)
     applySpringPhysics(ToggleBtn)
     local current = defaultVal
@@ -549,9 +631,11 @@ end)
 createToggle(TabGfx, "4K PBR Reflectance", 2, pbrEnabled, function(val)
     pbrEnabled = val
     if val then task.spawn(runPBRScan)
-    else for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") or v:IsA("MeshPart") then v.Reflectance = 0 end
-    end end
+    else
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("BasePart") or v:IsA("MeshPart") then v.Reflectance = 0 end
+        end
+    end
 end)
 createToggle(TabGfx, "Anti-Blue Gloss", 3, antiBlueGloss, function(val)
     antiBlueGloss = val
@@ -560,128 +644,159 @@ end)
 createToggle(TabGfx, "Horror Fog Mode", 4, horrorFogEnabled, function(val)
     horrorFogEnabled = val
     if val then
-        rainEnabled = false
-        ModeText = "Status: Horror Fog" BorderColorNow = Color3.fromRGB(255,0,50)
-        Lighting.FogStart = 0 Lighting.FogEnd = 60
-        Lighting.FogColor = Color3.fromRGB(8,5,12)
-        Lighting.Ambient = Color3.fromRGB(15,5,5)
+        rainEnabled     = false
+        heavenlyEnabled = false
+        clearRainParticles()
+        ModeText       = "Status: Horror Fog"
+        BorderColorNow = Color3.fromRGB(255,0,50)
+        Lighting.FogStart       = 0
+        Lighting.FogEnd         = 60
+        Lighting.FogColor       = Color3.fromRGB(8,5,12)
+        Lighting.Ambient        = Color3.fromRGB(15,5,5)
         Lighting.OutdoorAmbient = Color3.fromRGB(10,5,5)
-        Lighting.Brightness = 0.15
+        Lighting.Brightness     = 0.15
     else
-        Lighting.FogStart = originalFogStart Lighting.FogEnd = originalFogEnd
-        Lighting.FogColor = originalFogColor Lighting.Ambient = originalAmbient
+        resetFogLighting()
     end
 end)
 createToggle(TabGfx, "Rain Mode", 5, rainEnabled, function(val)
     rainEnabled = val
     if val then
         horrorFogEnabled = false
-        ModeText = "Status: Rainy" BorderColorNow = Color3.fromRGB(100,160,255)
+        heavenlyEnabled  = false
+        ModeText       = "Status: Rainy"
+        BorderColorNow = Color3.fromRGB(100,160,255)
         local p = PROFILES.RAIN
-        Lighting.Brightness = p.brightness Lighting.ExposureCompensation = p.exposure
-        Lighting.ShadowSoftness = p.shadow Lighting.OutdoorAmbient = p.ambient
-        Atmosphere.Color = p.atmoColor Atmosphere.Decay = p.atmoDecay
-        Atmosphere.Glare = p.atmoGlare Atmosphere.Haze = p.atmoHaze
-        Atmosphere.Density = p.atmoDensity ColorCorrection.Contrast = p.contrast
-        ColorCorrection.Saturation = p.saturation ColorCorrection.TintColor = p.tint
-        Bloom.Intensity = p.bloom Bloom.Size = p.bloomSize Bloom.Threshold = p.bloomThreshold
-        DOF.FarIntensity = p.dofFar SunRays.Intensity = p.sunRays
-        Lighting.FogStart = 0 Lighting.FogEnd = 120
-        Lighting.FogColor = Color3.fromRGB(120,130,145)
+        Lighting.Brightness           = p.brightness
+        Lighting.ExposureCompensation = p.exposure
+        Lighting.ShadowSoftness       = p.shadow
+        Lighting.OutdoorAmbient       = p.ambient
+        Atmosphere.Color              = p.atmoColor
+        Atmosphere.Decay              = p.atmoDecay
+        Atmosphere.Glare              = p.atmoGlare
+        Atmosphere.Haze               = p.atmoHaze
+        Atmosphere.Density            = p.atmoDensity
+        ColorCorrection.Contrast      = p.contrast
+        ColorCorrection.Saturation    = p.saturation
+        ColorCorrection.TintColor     = p.tint
+        Bloom.Intensity               = p.bloom
+        Bloom.Size                    = p.bloomSize
+        Bloom.Threshold               = p.bloomThreshold
+        DOF.FarIntensity              = p.dofFar
+        SunRays.Intensity             = p.sunRays
+        Lighting.FogStart = 0
+        Lighting.FogEnd   = 90
+        Lighting.FogColor = Color3.fromRGB(95,108,130)
+        createRainParticles()
     else
-        Lighting.FogStart = originalFogStart Lighting.FogEnd = originalFogEnd
-        Lighting.FogColor = originalFogColor
+        clearRainParticles()
+        resetFogLighting()
     end
 end)
-
-createToggle(TabGfx, "Heavenly Mode", 6, false, function(val)
+createToggle(TabGfx, "Heavenly Mode", 6, heavenlyEnabled, function(val)
+    heavenlyEnabled = val
     if val then
-        horrorFogEnabled = false rainEnabled = false
-        ModeText = "Status: Heavenly"
+        horrorFogEnabled = false
+        rainEnabled      = false
+        clearRainParticles()
+        ModeText       = "Status: Heavenly"
         BorderColorNow = Color3.fromRGB(255,230,150)
         local p = PROFILES.HEAVENLY
-        Lighting.Brightness = p.brightness
+        Lighting.Brightness           = p.brightness
         Lighting.ExposureCompensation = p.exposure
-        Lighting.ShadowSoftness = p.shadow
-        Lighting.OutdoorAmbient = p.ambient
-        Atmosphere.Color = p.atmoColor
-        Atmosphere.Decay = p.atmoDecay
-        Atmosphere.Glare = p.atmoGlare
-        Atmosphere.Haze = p.atmoHaze
-        Atmosphere.Density = p.atmoDensity
-        ColorCorrection.Contrast = p.contrast
-        ColorCorrection.Saturation = p.saturation
-        ColorCorrection.TintColor = p.tint
-        Bloom.Intensity = p.bloom
-        Bloom.Size = p.bloomSize
-        Bloom.Threshold = p.bloomThreshold
-        DOF.FarIntensity = p.dofFar
-        SunRays.Intensity = p.sunRays
-        Lighting.FogStart = 200
-        Lighting.FogEnd = 800
-        Lighting.FogColor = Color3.fromRGB(220,235,255)
+        Lighting.ShadowSoftness       = p.shadow
+        Lighting.OutdoorAmbient       = p.ambient
+        Atmosphere.Color              = p.atmoColor
+        Atmosphere.Decay              = p.atmoDecay
+        Atmosphere.Glare              = p.atmoGlare
+        Atmosphere.Haze               = p.atmoHaze
+        Atmosphere.Density            = p.atmoDensity
+        ColorCorrection.Contrast      = p.contrast
+        ColorCorrection.Saturation    = p.saturation
+        ColorCorrection.TintColor     = p.tint
+        Bloom.Intensity               = p.bloom
+        Bloom.Size                    = p.bloomSize
+        Bloom.Threshold               = p.bloomThreshold
+        DOF.FarIntensity              = p.dofFar
+        SunRays.Intensity             = p.sunRays
+        Lighting.FogStart  = 200
+        Lighting.FogEnd    = 800
+        Lighting.FogColor  = Color3.fromRGB(220,235,255)
         Lighting.ClockTime = 12
     else
-        Lighting.FogStart = originalFogStart
-        Lighting.FogEnd = originalFogEnd
-        Lighting.FogColor = originalFogColor
+        resetFogLighting()
     end
 end)
 
 local LiveTimeLabel = Instance.new("TextLabel", TabGfx)
-LiveTimeLabel.Size = UDim2.new(1,-20,0,20)
-LiveTimeLabel.Position = UDim2.new(0,10,0,210)
+LiveTimeLabel.Size                  = UDim2.new(1,-20,0,20)
+LiveTimeLabel.Position              = UDim2.new(0,10,0,215)
 LiveTimeLabel.BackgroundTransparency = 1
-LiveTimeLabel.Text = "Status: Loaded"
-LiveTimeLabel.TextColor3 = Color3.fromRGB(180,0,255)
-LiveTimeLabel.TextSize = 11 LiveTimeLabel.Font = Enum.Font.Code
-LiveTimeLabel.TextXAlignment = Enum.TextXAlignment.Center
+LiveTimeLabel.Text                  = "Status: Loaded"
+LiveTimeLabel.TextColor3            = Color3.fromRGB(180,0,255)
+LiveTimeLabel.TextSize              = 11
+LiveTimeLabel.Font                  = Enum.Font.Code
+LiveTimeLabel.TextXAlignment        = Enum.TextXAlignment.Center
 
 -- ==================== SKYBOX TAB ====================
 local function applySkyPreset(preset)
     local sky = Lighting:FindFirstChildOfClass("Sky")
     if not sky then sky = Instance.new("Sky",Lighting) end
-    sky.SkyboxBk=preset.bk sky.SkyboxDn=preset.dn sky.SkyboxFt=preset.ft
-    sky.SkyboxLf=preset.lf sky.SkyboxRt=preset.rt sky.SkyboxUp=preset.up
-    sky.StarCount=preset.star Lighting.ClockTime=preset.time
+    sky.SkyboxBk = preset.bk  sky.SkyboxDn = preset.dn  sky.SkyboxFt = preset.ft
+    sky.SkyboxLf = preset.lf  sky.SkyboxRt = preset.rt  sky.SkyboxUp = preset.up
+    sky.StarCount = preset.star
+    Lighting.ClockTime = preset.time
 end
 
 local scrollSky = Instance.new("ScrollingFrame", TabSky)
-scrollSky.Size = UDim2.new(1,-10,1,-10)
-scrollSky.Position = UDim2.new(0,5,0,5)
-scrollSky.BackgroundTransparency = 1 scrollSky.BorderSizePixel = 0
-scrollSky.CanvasSize = UDim2.new(0,0,0,320) scrollSky.ScrollBarThickness = 3
+scrollSky.Size                  = UDim2.new(1,-10,1,-10)
+scrollSky.Position              = UDim2.new(0,5,0,5)
+scrollSky.BackgroundTransparency = 1
+scrollSky.BorderSizePixel       = 0
+scrollSky.ScrollBarThickness    = 3
 
 local orderIdx = 1
 for _, preset in pairs(SKY_PRESETS) do
     local SkyBtn = Instance.new("TextButton", scrollSky)
-    SkyBtn.Size = UDim2.new(1,-10,0,30)
-    SkyBtn.Position = UDim2.new(0,5,0,(orderIdx-1)*36)
-    SkyBtn.BackgroundColor3 = Color3.fromRGB(30,24,45) SkyBtn.BackgroundTransparency = 0.4
-    SkyBtn.Text = preset.name SkyBtn.TextColor3 = Color3.fromRGB(240,240,255)
-    SkyBtn.Font = Enum.Font.SourceSans SkyBtn.TextSize = 12
+    SkyBtn.Size                  = UDim2.new(1,-10,0,30)
+    SkyBtn.Position              = UDim2.new(0,5,0,(orderIdx-1)*36)
+    SkyBtn.BackgroundColor3      = Color3.fromRGB(30,24,45)
+    SkyBtn.BackgroundTransparency = 0.4
+    SkyBtn.Text                  = preset.name
+    SkyBtn.TextColor3            = Color3.fromRGB(240,240,255)
+    SkyBtn.Font                  = Enum.Font.SourceSans
+    SkyBtn.TextSize              = 12
     Instance.new("UICorner",SkyBtn).CornerRadius = UDim.new(0,6)
-    Instance.new("UIStroke",SkyBtn).Color = Color3.fromRGB(80,60,110)
+    Instance.new("UIStroke",SkyBtn).Color        = Color3.fromRGB(80,60,110)
     applySpringPhysics(SkyBtn)
     SkyBtn.MouseButton1Click:Connect(function() applySkyPreset(preset) end)
-    orderIdx = orderIdx + 1  -- [FIXED] += -> = orderIdx + 1
+    orderIdx = orderIdx + 1
 end
 
+local customSkyOffset = (orderIdx-1)*36 + 10
+scrollSky.CanvasSize = UDim2.new(0,0,0, customSkyOffset + 80)
+
 local InputField = Instance.new("TextBox", scrollSky)
-InputField.Size = UDim2.new(1,-10,0,30)
-InputField.Position = UDim2.new(0,5,0,(orderIdx-1)*36+10)
-InputField.BackgroundColor3 = Color3.fromRGB(20,15,30) InputField.BackgroundTransparency = 0.4
-InputField.PlaceholderText = "Asset ID or rbxassetid://..."
-InputField.Text = "" InputField.TextColor3 = Color3.fromRGB(0,220,255)
-InputField.Font = Enum.Font.Code InputField.TextSize = 11
+InputField.Size                  = UDim2.new(1,-10,0,30)
+InputField.Position              = UDim2.new(0,5,0,customSkyOffset)
+InputField.BackgroundColor3      = Color3.fromRGB(20,15,30)
+InputField.BackgroundTransparency = 0.4
+InputField.PlaceholderText       = "Asset ID or rbxassetid://..."
+InputField.Text                  = ""
+InputField.TextColor3            = Color3.fromRGB(0,220,255)
+InputField.Font                  = Enum.Font.Code
+InputField.TextSize              = 11
 Instance.new("UICorner",InputField).CornerRadius = UDim.new(0,6)
 
 local ApplyCustomBtn = Instance.new("TextButton", scrollSky)
-ApplyCustomBtn.Size = UDim2.new(1,-10,0,30)
-ApplyCustomBtn.Position = UDim2.new(0,5,0,(orderIdx-1)*36+46)
-ApplyCustomBtn.BackgroundColor3 = Color3.fromRGB(180,0,255) ApplyCustomBtn.BackgroundTransparency = 0.3
-ApplyCustomBtn.Text = "Apply Custom ID" ApplyCustomBtn.TextColor3 = Color3.fromRGB(255,255,255)
-ApplyCustomBtn.Font = Enum.Font.SourceSansBold ApplyCustomBtn.TextSize = 12
+ApplyCustomBtn.Size                  = UDim2.new(1,-10,0,30)
+ApplyCustomBtn.Position              = UDim2.new(0,5,0,customSkyOffset+36)
+ApplyCustomBtn.BackgroundColor3      = Color3.fromRGB(180,0,255)
+ApplyCustomBtn.BackgroundTransparency = 0.3
+ApplyCustomBtn.Text                  = "Apply Custom ID"
+ApplyCustomBtn.TextColor3            = Color3.fromRGB(255,255,255)
+ApplyCustomBtn.Font                  = Enum.Font.SourceSansBold
+ApplyCustomBtn.TextSize              = 12
 Instance.new("UICorner",ApplyCustomBtn).CornerRadius = UDim.new(0,6)
 applySpringPhysics(ApplyCustomBtn)
 ApplyCustomBtn.MouseButton1Click:Connect(function()
@@ -694,21 +809,26 @@ end)
 
 -- ==================== FPS BOOST TAB ====================
 local BoostStatusLabel = Instance.new("TextLabel", TabOptimize)
-BoostStatusLabel.Size = UDim2.new(1,-20,0,40) BoostStatusLabel.Position = UDim2.new(0,10,0,10)
+BoostStatusLabel.Size                  = UDim2.new(1,-20,0,40)
+BoostStatusLabel.Position              = UDim2.new(0,10,0,10)
 BoostStatusLabel.BackgroundTransparency = 1
-BoostStatusLabel.Text = "FPS Boost Mode\n(Replaces materials & disables shadows temporarily)"
-BoostStatusLabel.TextColor3 = Color3.fromRGB(170,170,180)
-BoostStatusLabel.TextSize = 11 BoostStatusLabel.Font = Enum.Font.SourceSans
-BoostStatusLabel.TextWrapped = true
+BoostStatusLabel.Text                  = "FPS Boost Mode\n(Replaces materials & disables shadows temporarily)"
+BoostStatusLabel.TextColor3            = Color3.fromRGB(170,170,180)
+BoostStatusLabel.TextSize              = 11
+BoostStatusLabel.Font                  = Enum.Font.SourceSans
+BoostStatusLabel.TextWrapped           = true
 
 local BoostButton = Instance.new("TextButton", TabOptimize)
-BoostButton.Size = UDim2.new(1,-20,0,50) BoostButton.Position = UDim2.new(0,10,0,65)
-BoostButton.BackgroundColor3 = Color3.fromRGB(255,60,100) BoostButton.BackgroundTransparency = 0.3
-BoostButton.Text = "ENABLE FPS BOOST" BoostButton.TextColor3 = Color3.fromRGB(255,255,255)
-BoostButton.Font = Enum.Font.SourceSansBold BoostButton.TextSize = 14
+BoostButton.Size                  = UDim2.new(1,-20,0,50)
+BoostButton.Position              = UDim2.new(0,10,0,65)
+BoostButton.BackgroundColor3      = Color3.fromRGB(255,60,100)
+BoostButton.BackgroundTransparency = 0.3
+BoostButton.Text                  = "ENABLE FPS BOOST"
+BoostButton.TextColor3            = Color3.fromRGB(255,255,255)
+BoostButton.Font                  = Enum.Font.SourceSansBold
+BoostButton.TextSize              = 14
 Instance.new("UICorner",BoostButton).CornerRadius = UDim.new(0,8)
-local BoostStroke = Instance.new("UIStroke", BoostButton)
-BoostStroke.Color = Color3.fromRGB(255,255,255) BoostStroke.Thickness = 1.2
+Instance.new("UIStroke",BoostButton).Color        = Color3.fromRGB(255,255,255)
 applySpringPhysics(BoostButton)
 
 local function triggerFPSBoost(turnOn)
@@ -718,26 +838,37 @@ local function triggerFPSBoost(turnOn)
         for _, v in pairs(workspace:GetDescendants()) do
             if v:IsA("BasePart") or v:IsA("MeshPart") then
                 if not originalMaterials[v] then
-                    originalMaterials[v] = v.Material originalShadows[v] = v.CastShadow
+                    originalMaterials[v] = v.Material
+                    originalShadows[v]   = v.CastShadow
                 end
-                v.Material = Enum.Material.SmoothPlastic v.CastShadow = false v.Reflectance = 0
-            elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1 end
-            count = count + 1  -- [FIXED]
+                v.Material    = Enum.Material.SmoothPlastic
+                v.CastShadow  = false
+                v.Reflectance = 0
+            elseif v:IsA("Decal") or v:IsA("Texture") then
+                v.Transparency = 1
+            end
+            count = count + 1
             if count % 250 == 0 then task.wait() end
         end
-        Terrain.Decoration = false Lighting.GlobalShadows = false
+        Terrain.Decoration     = false
+        Lighting.GlobalShadows = false
     else
         local count = 0
         for v, mat in pairs(originalMaterials) do
-            if v and v.Parent then v.Material = mat v.CastShadow = originalShadows[v] or false end
-            count = count + 1  -- [FIXED]
+            if v and v.Parent then
+                v.Material   = mat
+                v.CastShadow = originalShadows[v] or false
+            end
+            count = count + 1
             if count % 250 == 0 then task.wait() end
         end
         for _, v in pairs(workspace:GetDescendants()) do
             if v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 0 end
         end
-        Terrain.Decoration = true Lighting.GlobalShadows = true
-        table.clear(originalMaterials) table.clear(originalShadows)
+        Terrain.Decoration     = true
+        Lighting.GlobalShadows = true
+        table.clear(originalMaterials)
+        table.clear(originalShadows)
         task.spawn(runPBRScan)
     end
 end
@@ -757,29 +888,35 @@ end)
 
 -- ==================== THEME TAB ====================
 local ThemeTitle = Instance.new("TextLabel", TabTheme)
-ThemeTitle.Size = UDim2.new(1,-10,0,20) ThemeTitle.Position = UDim2.new(0,10,0,5)
-ThemeTitle.BackgroundTransparency = 1 ThemeTitle.Text = "UI Color Theme"
-ThemeTitle.TextColor3 = Color3.fromRGB(200,200,200)
-ThemeTitle.TextSize = 11 ThemeTitle.Font = Enum.Font.SourceSansBold
-ThemeTitle.TextXAlignment = Enum.TextXAlignment.Left
+ThemeTitle.Size                  = UDim2.new(1,-10,0,20)
+ThemeTitle.Position              = UDim2.new(0,10,0,5)
+ThemeTitle.BackgroundTransparency = 1
+ThemeTitle.Text                  = "UI Color Theme"
+ThemeTitle.TextColor3            = Color3.fromRGB(200,200,200)
+ThemeTitle.TextSize              = 11
+ThemeTitle.Font                  = Enum.Font.SourceSansBold
+ThemeTitle.TextXAlignment        = Enum.TextXAlignment.Left
 
 local activeThemeLabel = Instance.new("TextLabel", TabTheme)
-activeThemeLabel.Size = UDim2.new(1,-10,0,18) activeThemeLabel.Position = UDim2.new(0,10,0,22)
-activeThemeLabel.BackgroundTransparency = 1 activeThemeLabel.Text = "Active: Purple"
-activeThemeLabel.TextColor3 = Color3.fromRGB(180,0,255)
-activeThemeLabel.TextSize = 10 activeThemeLabel.Font = Enum.Font.Code
-activeThemeLabel.TextXAlignment = Enum.TextXAlignment.Left
+activeThemeLabel.Size                  = UDim2.new(1,-10,0,18)
+activeThemeLabel.Position              = UDim2.new(0,10,0,22)
+activeThemeLabel.BackgroundTransparency = 1
+activeThemeLabel.Text                  = "Active: Purple"
+activeThemeLabel.TextColor3            = Color3.fromRGB(180,0,255)
+activeThemeLabel.TextSize              = 10
+activeThemeLabel.Font                  = Enum.Font.Code
+activeThemeLabel.TextXAlignment        = Enum.TextXAlignment.Left
 
 local rainbowActive = false
 local function applyTheme(index)
-    local theme = COLOR_THEMES[index]
+    local theme       = COLOR_THEMES[index]
     currentThemeIndex = index
-    activeThemeLabel.Text = "Active: "..theme.name
+    activeThemeLabel.Text       = "Active: "..theme.name
     activeThemeLabel.TextColor3 = theme.primary
     UIGradientStroke.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0,theme.primary),
-        ColorSequenceKeypoint.new(0.5,theme.secondary),
-        ColorSequenceKeypoint.new(1,theme.primary)
+        ColorSequenceKeypoint.new(0,   theme.primary),
+        ColorSequenceKeypoint.new(0.5, theme.secondary),
+        ColorSequenceKeypoint.new(1,   theme.primary)
     })
     for _, b in pairs(tabButtons) do
         if b.BackgroundTransparency < 0.35 then
@@ -792,27 +929,368 @@ end
 
 for i, theme in ipairs(COLOR_THEMES) do
     local ThemeBtn = Instance.new("TextButton", TabTheme)
-    ThemeBtn.Size = UDim2.new(1,-10,0,28)
-    ThemeBtn.Position = UDim2.new(0,5,0,(i-1)*33+46)
-    ThemeBtn.BackgroundColor3 = theme.primary ThemeBtn.BackgroundTransparency = 0.3
-    ThemeBtn.Text = theme.name ThemeBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    ThemeBtn.Font = Enum.Font.SourceSansBold ThemeBtn.TextSize = 11
+    ThemeBtn.Size                  = UDim2.new(1,-10,0,28)
+    ThemeBtn.Position              = UDim2.new(0,5,0,(i-1)*33+46)
+    ThemeBtn.BackgroundColor3      = theme.primary
+    ThemeBtn.BackgroundTransparency = 0.3
+    ThemeBtn.Text                  = theme.name
+    ThemeBtn.TextColor3            = Color3.fromRGB(255,255,255)
+    ThemeBtn.Font                  = Enum.Font.SourceSansBold
+    ThemeBtn.TextSize              = 11
     Instance.new("UICorner",ThemeBtn).CornerRadius = UDim.new(0,6)
     applySpringPhysics(ThemeBtn)
     ThemeBtn.MouseButton1Click:Connect(function()
-        if theme.name == "Rainbow" then rainbowActive = true
-        else rainbowActive = false applyTheme(i) end
+        if theme.name == "Rainbow" then
+            rainbowActive = true
+        else
+            rainbowActive = false
+            applyTheme(i)
+        end
     end)
 end
 
+-- ==================== FPS CAP TAB ====================
+local FPSTitle = Instance.new("TextLabel", TabFPS)
+FPSTitle.Size                  = UDim2.new(1,-10,0,18)
+FPSTitle.Position              = UDim2.new(0,10,0,6)
+FPSTitle.BackgroundTransparency = 1
+FPSTitle.Text                  = "FPS Cap Settings"
+FPSTitle.TextColor3            = Color3.fromRGB(200,200,200)
+FPSTitle.TextSize              = 11
+FPSTitle.Font                  = Enum.Font.SourceSansBold
+FPSTitle.TextXAlignment        = Enum.TextXAlignment.Left
+
+local FPSValueLabel = Instance.new("TextLabel", TabFPS)
+FPSValueLabel.Size                  = UDim2.new(1,-20,0,24)
+FPSValueLabel.Position              = UDim2.new(0,10,0,26)
+FPSValueLabel.BackgroundColor3      = Color3.fromRGB(15,12,25)
+FPSValueLabel.BackgroundTransparency = 0.3
+FPSValueLabel.Text                  = "Cap: 60 FPS"
+FPSValueLabel.TextColor3            = Color3.fromRGB(0,220,255)
+FPSValueLabel.TextSize              = 12
+FPSValueLabel.Font                  = Enum.Font.Code
+FPSValueLabel.TextXAlignment        = Enum.TextXAlignment.Center
+Instance.new("UICorner",FPSValueLabel).CornerRadius = UDim.new(0,6)
+
+local SliderTrack = Instance.new("Frame", TabFPS)
+SliderTrack.Size                  = UDim2.new(1,-20,0,8)
+SliderTrack.Position              = UDim2.new(0,10,0,58)
+SliderTrack.BackgroundColor3      = Color3.fromRGB(30,25,45)
+SliderTrack.BackgroundTransparency = 0.3
+SliderTrack.BorderSizePixel       = 0
+Instance.new("UICorner",SliderTrack).CornerRadius = UDim.new(0,4)
+
+local SliderFill = Instance.new("Frame", SliderTrack)
+SliderFill.Size                  = UDim2.new(0.45,0,1,0)
+SliderFill.BackgroundColor3      = Color3.fromRGB(180,0,255)
+SliderFill.BackgroundTransparency = 0.0
+SliderFill.BorderSizePixel       = 0
+Instance.new("UICorner",SliderFill).CornerRadius = UDim.new(0,4)
+local SliderGrad = Instance.new("UIGradient", SliderFill)
+SliderGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(180,0,255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0,220,255))
+})
+
+local SliderKnob = Instance.new("TextButton", SliderTrack)
+SliderKnob.Size                  = UDim2.new(0,16,0,16)
+SliderKnob.Position              = UDim2.new(0.45,-8,0.5,-8)
+SliderKnob.BackgroundColor3      = Color3.fromRGB(255,255,255)
+SliderKnob.BackgroundTransparency = 0.0
+SliderKnob.Text                  = ""
+SliderKnob.BorderSizePixel       = 0
+SliderKnob.ZIndex                = 5
+Instance.new("UICorner",SliderKnob).CornerRadius = UDim.new(1,0)
+local KnobStroke = Instance.new("UIStroke",SliderKnob)
+KnobStroke.Color     = Color3.fromRGB(180,0,255)
+KnobStroke.Thickness = 2
+applySpringPhysics(SliderKnob)
+
+local FPS_MIN, FPS_MAX = 10, 120
+local sliderDragging   = false
+
+local function setFpsCap(fps)
+    targetFpsCap = math.clamp(math.round(fps), FPS_MIN, FPS_MAX)
+    local t = (targetFpsCap - FPS_MIN) / (FPS_MAX - FPS_MIN)
+    pcall(function()
+        TweenService:Create(SliderFill, TweenInfo.new(0.15,Enum.EasingStyle.Quad), {Size=UDim2.new(t,0,1,0)}):Play()
+        TweenService:Create(SliderKnob, TweenInfo.new(0.15,Enum.EasingStyle.Quad), {Position=UDim2.new(t,-8,0.5,-8)}):Play()
+    end)
+    FPSValueLabel.Text = "Cap: "..targetFpsCap.." FPS"
+    pcall(function() if setfpscap then setfpscap(targetFpsCap) end end)
+end
+
+SliderKnob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        sliderDragging = true
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then sliderDragging = false end
+        end)
+    end
+end)
+SliderTrack.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        sliderDragging = true
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then sliderDragging = false end
+        end)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if sliderDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local trackPos  = SliderTrack.AbsolutePosition
+        local trackSize = SliderTrack.AbsoluteSize
+        local rel = math.clamp((input.Position.X - trackPos.X) / trackSize.X, 0, 1)
+        setFpsCap(FPS_MIN + rel*(FPS_MAX - FPS_MIN))
+    end
+end)
+
+local FPS_PRESETS = {10, 30, 45, 60, 90, 120, 165}
+local presetRow = Instance.new("Frame", TabFPS)
+presetRow.Size                  = UDim2.new(1,-20,0,24)
+presetRow.Position              = UDim2.new(0,10,0,74)
+presetRow.BackgroundTransparency = 1
+
+for i, fps in ipairs(FPS_PRESETS) do
+    local pb = Instance.new("TextButton", presetRow)
+    local total = #FPS_PRESETS
+    pb.Size                  = UDim2.new(1/total, -2, 1, 0)
+    pb.Position              = UDim2.new((i-1)/total, 1, 0, 0)
+    pb.BackgroundColor3      = fps == 165 and Color3.fromRGB(255,180,0) or Color3.fromRGB(30,25,45)
+    pb.BackgroundTransparency = 0.3
+    pb.Text                  = fps == 165 and "165!" or tostring(fps)
+    pb.TextColor3            = Color3.fromRGB(255,255,255)
+    pb.Font                  = Enum.Font.Code
+    pb.TextSize              = 9
+    Instance.new("UICorner",pb).CornerRadius = UDim.new(0,4)
+    applySpringPhysics(pb)
+    pb.MouseButton1Click:Connect(function()
+        if fps == 165 then
+            targetFpsCap = 165
+            FPSValueLabel.Text = "Cap: 165 FPS ⚡"
+            pcall(function() if setfpscap then setfpscap(165) end end)
+            pcall(function()
+                TweenService:Create(SliderFill, TweenInfo.new(0.2,Enum.EasingStyle.Back), {Size=UDim2.new(1,0,1,0)}):Play()
+                TweenService:Create(SliderKnob, TweenInfo.new(0.2,Enum.EasingStyle.Back), {Position=UDim2.new(1,-8,0.5,-8)}):Play()
+            end)
+        else
+            setFpsCap(fps)
+        end
+    end)
+end
+
+local ShowFPSPopupBtn = Instance.new("TextButton", TabFPS)
+ShowFPSPopupBtn.Size                  = UDim2.new(1,-20,0,30)
+ShowFPSPopupBtn.Position              = UDim2.new(0,10,0,106)
+ShowFPSPopupBtn.BackgroundColor3      = Color3.fromRGB(0,180,255)
+ShowFPSPopupBtn.BackgroundTransparency = 0.2
+ShowFPSPopupBtn.Text                  = "📊 Show FPS Monitor"
+ShowFPSPopupBtn.TextColor3            = Color3.fromRGB(255,255,255)
+ShowFPSPopupBtn.Font                  = Enum.Font.SourceSansBold
+ShowFPSPopupBtn.TextSize              = 11
+Instance.new("UICorner",ShowFPSPopupBtn).CornerRadius = UDim.new(0,6)
+applySpringPhysics(ShowFPSPopupBtn)
+
+setFpsCap(60)
+
+-- ==================== FPS POPUP BOX ====================
+local FPSPopup = Instance.new("Frame", ScreenGui)
+FPSPopup.Name                    = "FPSPopup"
+FPSPopup.Size                    = UDim2.new(0,140,0,95)
+FPSPopup.Position                = UDim2.new(0.5,20,0.4,20)
+FPSPopup.BackgroundColor3        = Color3.fromRGB(8,6,15)
+FPSPopup.BackgroundTransparency  = 0.2
+FPSPopup.BorderSizePixel         = 0
+FPSPopup.ClipsDescendants        = true
+FPSPopup.Visible                 = false
+FPSPopup.ZIndex                  = 20
+Instance.new("UICorner",FPSPopup).CornerRadius = UDim.new(0,12)
+
+local FPSPopupStroke = Instance.new("UIStroke", FPSPopup)
+FPSPopupStroke.Thickness       = 1.5
+FPSPopupStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+FPSPopupStroke.Color           = Color3.fromRGB(0,180,255)
+local FPSPopupGrad = Instance.new("UIGradient", FPSPopupStroke)
+FPSPopupGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(180,0,255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0,220,255)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(180,0,255))
+})
+
+local PopupShim = Instance.new("Frame", FPSPopup)
+PopupShim.Size            = UDim2.new(1.5,0,0,1.5)
+PopupShim.Position        = UDim2.new(-0.25,0,0,0)
+PopupShim.BorderSizePixel = 0
+PopupShim.ZIndex          = 21
+local PopupShimGrad = Instance.new("UIGradient", PopupShim)
+PopupShimGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(255,255,255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100,200,255)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(255,255,255))
+})
+task.spawn(function()
+    while task.wait(0.05) do
+        if FPSPopup and FPSPopup.Parent then
+            pcall(function() PopupShimGrad.Offset = Vector2.new(math.sin(tick()*2)*0.5, 0) end)
+        else break end
+    end
+end)
+
+local PopupHeader = Instance.new("Frame", FPSPopup)
+PopupHeader.Size                  = UDim2.new(1,0,0,26)
+PopupHeader.BackgroundColor3      = Color3.fromRGB(15,12,28)
+PopupHeader.BackgroundTransparency = 0.3
+PopupHeader.BorderSizePixel       = 0
+PopupHeader.ZIndex                = 21
+
+local PopupTitle = Instance.new("TextLabel", PopupHeader)
+PopupTitle.Size                  = UDim2.new(1,-30,1,0)
+PopupTitle.Position              = UDim2.new(0,8,0,0)
+PopupTitle.BackgroundTransparency = 1
+PopupTitle.Text                  = "FPS Monitor"
+PopupTitle.TextColor3            = Color3.fromRGB(0,220,255)
+PopupTitle.TextSize              = 11
+PopupTitle.Font                  = Enum.Font.Code
+PopupTitle.TextXAlignment        = Enum.TextXAlignment.Left
+PopupTitle.ZIndex                = 22
+
+local PopupCloseBtn = Instance.new("TextButton", PopupHeader)
+PopupCloseBtn.Size                  = UDim2.new(0,20,0,20)
+PopupCloseBtn.Position              = UDim2.new(1,-24,0.5,-10)
+PopupCloseBtn.BackgroundColor3      = Color3.fromRGB(200,30,60)
+PopupCloseBtn.BackgroundTransparency = 0.2
+PopupCloseBtn.Text                  = "×"
+PopupCloseBtn.TextColor3            = Color3.fromRGB(255,255,255)
+PopupCloseBtn.Font                  = Enum.Font.SourceSansBold
+PopupCloseBtn.TextSize              = 14
+PopupCloseBtn.ZIndex                = 23
+Instance.new("UICorner",PopupCloseBtn).CornerRadius = UDim.new(1,0)
+applySpringPhysics(PopupCloseBtn)
+
+local PopupFPSBig = Instance.new("TextLabel", FPSPopup)
+PopupFPSBig.Size                  = UDim2.new(1,0,0,38)
+PopupFPSBig.Position              = UDim2.new(0,0,0,27)
+PopupFPSBig.BackgroundTransparency = 1
+PopupFPSBig.Text                  = "--"
+PopupFPSBig.TextColor3            = Color3.fromRGB(0,255,180)
+PopupFPSBig.TextSize              = 32
+PopupFPSBig.Font                  = Enum.Font.Code
+PopupFPSBig.TextXAlignment        = Enum.TextXAlignment.Center
+PopupFPSBig.ZIndex                = 22
+
+local PopupFPSUnit = Instance.new("TextLabel", FPSPopup)
+PopupFPSUnit.Size                  = UDim2.new(1,0,0,14)
+PopupFPSUnit.Position              = UDim2.new(0,0,0,63)
+PopupFPSUnit.BackgroundTransparency = 1
+PopupFPSUnit.Text                  = "frames / second"
+PopupFPSUnit.TextColor3            = Color3.fromRGB(120,140,160)
+PopupFPSUnit.TextSize              = 10
+PopupFPSUnit.Font                  = Enum.Font.Code
+PopupFPSUnit.TextXAlignment        = Enum.TextXAlignment.Center
+PopupFPSUnit.ZIndex                = 22
+
+local PopupCapLabel = Instance.new("TextLabel", FPSPopup)
+PopupCapLabel.Size                  = UDim2.new(1,0,0,12)
+PopupCapLabel.Position              = UDim2.new(0,0,0,78)
+PopupCapLabel.BackgroundTransparency = 1
+PopupCapLabel.Text                  = "Cap: 60"
+PopupCapLabel.TextColor3            = Color3.fromRGB(180,0,255)
+PopupCapLabel.TextSize              = 10
+PopupCapLabel.Font                  = Enum.Font.Code
+PopupCapLabel.TextXAlignment        = Enum.TextXAlignment.Center
+PopupCapLabel.ZIndex                = 22
+
+local PopupResize = Instance.new("TextButton", FPSPopup)
+PopupResize.Size                  = UDim2.new(0,18,0,18)
+PopupResize.Position              = UDim2.new(1,-18,1,-18)
+PopupResize.BackgroundTransparency = 1
+PopupResize.Text                  = "◢"
+PopupResize.TextColor3            = Color3.fromRGB(100,120,160)
+PopupResize.TextTransparency      = 0.4
+PopupResize.TextSize              = 12
+PopupResize.Font                  = Enum.Font.SourceSansBold
+PopupResize.ZIndex                = 25
+
+local popupDrag, popupDragStart, popupStartPos = false, nil, nil
+PopupHeader.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        popupDrag      = true
+        popupDragStart = input.Position
+        popupStartPos  = FPSPopup.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then popupDrag = false end
+        end)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if popupDrag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local d = input.Position - popupDragStart
+        FPSPopup.Position = UDim2.new(popupStartPos.X.Scale, popupStartPos.X.Offset+d.X, popupStartPos.Y.Scale, popupStartPos.Y.Offset+d.Y)
+    end
+end)
+
+local popupResizing, popupResizeStart, popupResizeSize = false, nil, nil
+PopupResize.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        popupResizing    = true
+        popupResizeStart = input.Position
+        popupResizeSize  = Vector2.new(FPSPopup.Size.X.Offset, FPSPopup.Size.Y.Offset)
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then popupResizing = false end
+        end)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if popupResizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local d    = input.Position - popupResizeStart
+        local newW = math.clamp(popupResizeSize.X + d.X, 100, 300)
+        local newH = math.clamp(popupResizeSize.Y + d.Y, 70,  200)
+        pcall(function()
+            TweenService:Create(FPSPopup, TweenInfo.new(0.05,Enum.EasingStyle.Quad), {
+                Size = UDim2.new(0,newW,0,newH)
+            }):Play()
+        end)
+    end
+end)
+
+PopupCloseBtn.MouseButton1Click:Connect(function()
+    pcall(function()
+        local s = FPSPopup:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",FPSPopup)
+        s.Scale = 1
+        TweenService:Create(s, TweenInfo.new(0.2,Enum.EasingStyle.Back,Enum.EasingDirection.In), {Scale=0}):Play()
+    end)
+    task.delay(0.18, function() FPSPopup.Visible = false end)
+    ShowFPSPopupBtn.Text = "📊 Show FPS Monitor"
+end)
+
+ShowFPSPopupBtn.MouseButton1Click:Connect(function()
+    if FPSPopup.Visible then
+        pcall(function()
+            local s = FPSPopup:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",FPSPopup)
+            s.Scale = 1
+            TweenService:Create(s, TweenInfo.new(0.2,Enum.EasingStyle.Back,Enum.EasingDirection.In), {Scale=0}):Play()
+        end)
+        task.delay(0.18, function() FPSPopup.Visible = false end)
+        ShowFPSPopupBtn.Text = "📊 Show FPS Monitor"
+    else
+        FPSPopup.Visible = true
+        local s = FPSPopup:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",FPSPopup)
+        s.Scale = 0
+        pcall(function()
+            TweenService:Create(s, TweenInfo.new(0.35,Enum.EasingStyle.Back,Enum.EasingDirection.Out), {Scale=1}):Play()
+        end)
+        ShowFPSPopupBtn.Text = "📊 Hide FPS Monitor"
+    end
+end)
+
 -- ==================== RENDER LOOP ====================
 local nextUpdate, frameCount = 0, 0
-local lastBorderColor = nil
-rainbowHue = 0
+local lastBorderColor        = nil
+rainbowHue                   = 0
 
 RunService.RenderStepped:Connect(function(dt)
-    frameCount = frameCount + 1  -- [FIXED]
-    nextUpdate = nextUpdate + dt  -- [FIXED]
+    frameCount = frameCount + 1
+    nextUpdate = nextUpdate + dt
 
     if rainbowActive then
         rainbowHue = (rainbowHue + dt*80) % 360
@@ -820,32 +1298,47 @@ RunService.RenderStepped:Connect(function(dt)
         local col2 = Color3.fromHSV(((rainbowHue+120)%360)/360, 1, 1)
         pcall(function()
             UIGradientStroke.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0,col),
-                ColorSequenceKeypoint.new(0.5,col2),
-                ColorSequenceKeypoint.new(1,col)
+                ColorSequenceKeypoint.new(0,   col),
+                ColorSequenceKeypoint.new(0.5, col2),
+                ColorSequenceKeypoint.new(1,   col)
             })
         end)
-        BorderColorNow = col
+        BorderColorNow              = col
         activeThemeLabel.TextColor3 = col
     end
 
     if nextUpdate >= 0.5 then
         local fps = math.round(frameCount/nextUpdate)
+        InfoFPSLabel.Text = "FPS: "..fps
+
         if isMinimized then
-            InfoFPSLabel.Text = "FPS: "..fps
-            MinimizedStatusLabel.Text = ModeText
+            MinimizedStatusLabel.Visible    = false
+            MinimizedStatusLabel.Text       = ModeText
             MinimizedStatusLabel.TextColor3 = BorderColorNow
-        else
-            InfoFPSLabel.Text = "FPS: "..fps
         end
-        LiveTimeLabel.Text = ModeText
+
+        LiveTimeLabel.Text       = ModeText
         LiveTimeLabel.TextColor3 = BorderColorNow
+
+        if FPSPopup.Visible then
+            PopupFPSBig.Text   = tostring(fps)
+            PopupCapLabel.Text = "Cap: "..(targetFpsCap == 165 and "165⚡" or tostring(targetFpsCap))
+            local fpsRatio = math.clamp(fps/math.max(targetFpsCap,1), 0, 1)
+            PopupFPSBig.TextColor3 = Color3.fromRGB(
+                math.floor(lerpN(255,0,fpsRatio)),
+                math.floor(lerpN(60,255,fpsRatio)),
+                math.floor(lerpN(60,180,fpsRatio))
+            )
+        end
+
         if not rainbowActive and BorderColorNow ~= lastBorderColor then
             lastBorderColor = BorderColorNow
             pcall(function()
                 TweenService:Create(UIStroke,TweenInfo.new(0.4),{Color=BorderColorNow}):Play()
+                TweenService:Create(FPSPopupStroke,TweenInfo.new(0.4),{Color=BorderColorNow}):Play()
             end)
         end
+
         local fpsColor =
             fps >= 110 and Color3.fromRGB(180,0,255)
             or fps >= 90  and Color3.fromRGB(0,220,255)
@@ -853,15 +1346,15 @@ RunService.RenderStepped:Connect(function(dt)
             or fps >= 30  and Color3.fromRGB(255,200,0)
             or Color3.fromRGB(255,60,60)
         InfoFPSLabel.TextColor3 = fpsColor
-        frameCount = 0 nextUpdate = 0
+
+        frameCount = 0
+        nextUpdate = 0
     end
 end)
 
-print("MYTHICAL SHADER v4.5: Heavenly + Fixes Loaded!")
-
 -- ==================== GRID SIZE SYSTEM ====================
 local camera = workspace.CurrentCamera
-local GRID = 64
+local GRID   = 64
 local SIZE_PRESETS = {
     { label="1×1",   w=1,  h=1  },
     { label="1×2",   w=1,  h=2  },
@@ -873,22 +1366,24 @@ local SIZE_PRESETS = {
 local currentSizeIndex = 5
 
 local SizeBtn = Instance.new("TextButton", TitleBar)
-SizeBtn.Size = UDim2.new(0,42,0,22)
-SizeBtn.Position = UDim2.new(1,-82,0.5,-11)
-SizeBtn.BackgroundColor3 = Color3.fromRGB(20,16,30) SizeBtn.BackgroundTransparency = 0.3
-SizeBtn.Text = SIZE_PRESETS[currentSizeIndex].label
-SizeBtn.TextColor3 = Color3.fromRGB(0,220,255)
-SizeBtn.Font = Enum.Font.Code SizeBtn.TextSize = 10
+SizeBtn.Size                  = UDim2.new(0,42,0,22)
+SizeBtn.Position              = UDim2.new(1,-82,0.5,-11)
+SizeBtn.BackgroundColor3      = Color3.fromRGB(20,16,30)
+SizeBtn.BackgroundTransparency = 0.3
+SizeBtn.Text                  = SIZE_PRESETS[currentSizeIndex].label
+SizeBtn.TextColor3            = Color3.fromRGB(0,220,255)
+SizeBtn.Font                  = Enum.Font.Code
+SizeBtn.TextSize              = 10
 Instance.new("UICorner",SizeBtn).CornerRadius = UDim.new(0,5)
-Instance.new("UIStroke",SizeBtn).Color = Color3.fromRGB(80,60,110)
+Instance.new("UIStroke",SizeBtn).Color        = Color3.fromRGB(80,60,110)
 applySpringPhysics(SizeBtn)
 
 local function updateUIVisibility(w, h)
-    Sidebar.Visible      = w >= 150 and h >= 120
-    ContentArea.Visible  = w >= 150 and h >= 120
-    InfoFPSLabel.Visible = w >= 120 and h >= 40
-    TitleLabel.Visible   = w >= 100
-    MinimizedStatusLabel.Visible = w >= 100 and h >= 40 and not (w >= 150 and h >= 120)
+    Sidebar.Visible              = w >= 150 and h >= 120
+    ContentArea.Visible          = w >= 150 and h >= 120
+    InfoFPSLabel.Visible         = w >= 120 and h >= 40
+    TitleLabel.Visible           = w >= 100
+    MinimizedStatusLabel.Visible = false
 end
 
 local function gridPx(slots, axis)
@@ -909,27 +1404,30 @@ end
 
 SizeBtn.MouseButton1Click:Connect(function()
     currentSizeIndex = (currentSizeIndex % #SIZE_PRESETS) + 1
-    local preset = SIZE_PRESETS[currentSizeIndex]
-    SizeBtn.Text = preset.label
+    local preset     = SIZE_PRESETS[currentSizeIndex]
+    SizeBtn.Text     = preset.label
     applyGridSize(preset)
 end)
 
--- ==================== DRAG-TO-RESIZE ====================
+-- ==================== DRAG-TO-RESIZE (MAIN) ====================
 local ResizeHandle = Instance.new("TextButton", MainFrame)
-ResizeHandle.Size = UDim2.new(0,22,0,22) ResizeHandle.Position = UDim2.new(1,-22,1,-22)
-ResizeHandle.BackgroundTransparency = 1 ResizeHandle.Text = "◢"
-ResizeHandle.TextColor3 = Color3.fromRGB(255,255,255) ResizeHandle.TextTransparency = 0.5
-ResizeHandle.TextSize = 14 ResizeHandle.Font = Enum.Font.SourceSansBold ResizeHandle.ZIndex = 10
+ResizeHandle.Size                  = UDim2.new(0,22,0,22)
+ResizeHandle.Position              = UDim2.new(1,-22,1,-22)
+ResizeHandle.BackgroundTransparency = 1
+ResizeHandle.Text                  = "◢"
+ResizeHandle.TextColor3            = Color3.fromRGB(255,255,255)
+ResizeHandle.TextTransparency      = 0.5
+ResizeHandle.TextSize              = 14
+ResizeHandle.Font                  = Enum.Font.SourceSansBold
+ResizeHandle.ZIndex                = 10
 
-local isResizing = false
-local resizeStartInputPos = nil
-local resizeStartSize = nil
+local isResizing, resizeStartPos2, resizeStartSize2 = false, nil, nil
 
 ResizeHandle.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        isResizing = true
-        resizeStartInputPos = input.Position
-        resizeStartSize = Vector2.new(MainFrame.Size.X.Offset, MainFrame.Size.Y.Offset)
+        isResizing       = true
+        resizeStartPos2  = input.Position
+        resizeStartSize2 = Vector2.new(MainFrame.Size.X.Offset, MainFrame.Size.Y.Offset)
         pcall(function() TweenService:Create(ResizeHandle,TweenInfo.new(0.2,Enum.EasingStyle.Quad),{TextTransparency=0}):Play() end)
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
@@ -942,9 +1440,9 @@ end)
 
 UserInputService.InputChanged:Connect(function(input)
     if isResizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - resizeStartInputPos
-        local newW = math.clamp(resizeStartSize.X + delta.X, 60, 800)
-        local newH = math.clamp(resizeStartSize.Y + delta.Y, 35, 600)
+        local delta = input.Position - resizeStartPos2
+        local newW  = math.clamp(resizeStartSize2.X + delta.X, 60, 800)
+        local newH  = math.clamp(resizeStartSize2.Y + delta.Y, 35, 600)
         SizeBtn.Text = "Custom"
         updateUIVisibility(newW, newH)
         pcall(function()
@@ -967,4 +1465,4 @@ task.spawn(function()
 end)
 
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
-print("MYTHICAL SHADER v4.5: Heavenly + No Glow Ready!")
+print("✅ MYTHICAL SHADER v4.6: All fixes + Rain particles + FPS Settings loaded!")
