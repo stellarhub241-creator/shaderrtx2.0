@@ -80,7 +80,8 @@ local PROFILES = {
     DAY    = { brightness=1.5,  exposure=0.1,   shadow=0.3,  ambient=Color3.fromRGB(50,50,60),  atmoColor=Color3.fromRGB(185,215,255), atmoDecay=Color3.fromRGB(110,120,140),atmoGlare=1.2, atmoHaze=1.2, atmoDensity=0.25, contrast=0.35, saturation=0.45, tint=Color3.fromRGB(255,235,200), bloom=0.35, bloomSize=16, bloomThreshold=0.85, dofFar=0.2, sunRays=0.25 },
     GOLDEN = { brightness=2.2,  exposure=0.2,   shadow=0.2,  ambient=Color3.fromRGB(80,50,30),  atmoColor=Color3.fromRGB(255,130,50),  atmoDecay=Color3.fromRGB(150,60,10),  atmoGlare=2.0, atmoHaze=2.0, atmoDensity=0.35, contrast=0.35, saturation=0.7,  tint=Color3.fromRGB(255,200,130), bloom=0.5,  bloomSize=18, bloomThreshold=0.65, dofFar=0.4, sunRays=0.45 },
     NIGHT  = { brightness=1.8,  exposure=0.18,  shadow=0.25, ambient=Color3.fromRGB(20,28,55),  atmoColor=Color3.fromRGB(20,35,80),   atmoDecay=Color3.fromRGB(10,15,40),   atmoGlare=0.5, atmoHaze=1.5, atmoDensity=0.35, contrast=0.35, saturation=0.4,  tint=Color3.fromRGB(200,220,255), bloom=1.0,  bloomSize=22, bloomThreshold=0.4,  dofFar=0.4, sunRays=0.1  },
-    RAIN   = { brightness=0.8,  exposure=-0.1,  shadow=0.5,  ambient=Color3.fromRGB(40,45,55),  atmoColor=Color3.fromRGB(120,130,150), atmoDecay=Color3.fromRGB(60,65,75),   atmoGlare=0.2, atmoHaze=3.5, atmoDensity=0.6,  contrast=0.1,  saturation=-0.1, tint=Color3.fromRGB(200,215,230), bloom=0.2,  bloomSize=12, bloomThreshold=0.9,  dofFar=0.5, sunRays=0.0  },
+    RAIN     = { brightness=0.8,  exposure=-0.1,  shadow=0.5,  ambient=Color3.fromRGB(40,45,55),  atmoColor=Color3.fromRGB(120,130,150), atmoDecay=Color3.fromRGB(60,65,75),   atmoGlare=0.2, atmoHaze=3.5, atmoDensity=0.6,  contrast=0.1,  saturation=-0.1, tint=Color3.fromRGB(200,215,230), bloom=0.2,  bloomSize=12, bloomThreshold=0.9,  dofFar=0.5, sunRays=0.0  },
+    HEAVENLY = { brightness=2.5,  exposure=0.3,   shadow=0.1,  ambient=Color3.fromRGB(200,210,255), atmoColor=Color3.fromRGB(220,235,255), atmoDecay=Color3.fromRGB(180,200,255),atmoGlare=2.5, atmoHaze=0.8, atmoDensity=0.1,  contrast=0.2,  saturation=0.5,  tint=Color3.fromRGB(255,245,220), bloom=1.2,  bloomSize=28, bloomThreshold=0.45, dofFar=0.1, sunRays=0.6  },
 }
 
 local function applyProfile(p)
@@ -268,8 +269,7 @@ Instance.new("UICorner",MinBtn).CornerRadius = UDim.new(0,6)
 local InfoFPSLabel = Instance.new("TextLabel", TitleBar)
 InfoFPSLabel.Size = UDim2.new(0,58,0,24)
 InfoFPSLabel.Position = UDim2.new(1,-150,0.5,-12)
-InfoFPSLabel.BackgroundColor3 = Color3.fromRGB(5,3,10)
-InfoFPSLabel.BackgroundTransparency = 0.3
+InfoFPSLabel.BackgroundTransparency = 1
 InfoFPSLabel.Text = "FPS: --"
 InfoFPSLabel.TextColor3 = Color3.fromRGB(0,255,120)
 InfoFPSLabel.TextSize = 12
@@ -277,9 +277,7 @@ InfoFPSLabel.Font = Enum.Font.Code
 InfoFPSLabel.TextXAlignment = Enum.TextXAlignment.Center
 InfoFPSLabel.ZIndex = 5
 Instance.new("UICorner", InfoFPSLabel).CornerRadius = UDim.new(0,6)
-local FpsStroke = Instance.new("UIStroke", InfoFPSLabel)
-FpsStroke.Color = Color3.fromRGB(255,182,217)
-FpsStroke.Thickness = 1.2
+
 
 local MinimizedStatusLabel = Instance.new("TextLabel", TitleBar)
 MinimizedStatusLabel.Size = UDim2.new(1,-24,0,20)
@@ -407,40 +405,7 @@ local dragToggle, dragStart, startPos
 local isDragging = false
 local longPressThread = nil
 
--- Glow frame รอบ UI ตอนลาก
-local GlowFrame = Instance.new("Frame", ScreenGui)
-GlowFrame.Size = UDim2.new(0,340,0,280)
-GlowFrame.Position = MainFrame.Position
-GlowFrame.BackgroundTransparency = 1
-GlowFrame.BorderSizePixel = 0
-GlowFrame.ZIndex = 0
-local GlowStroke = Instance.new("UIStroke", GlowFrame)
-GlowStroke.Thickness = 8
-GlowStroke.Color = Color3.fromRGB(255,182,217)
-GlowStroke.Transparency = 1
-Instance.new("UICorner", GlowFrame).CornerRadius = UDim.new(0,18)
-
-local function setGlow(on)
-    pcall(function()
-        TweenService:Create(GlowStroke, TweenInfo.new(0.25,Enum.EasingStyle.Quad), {
-            Transparency = on and 0.3 or 1
-        }):Play()
-    end)
-end
-
--- sync glow frame กับ MainFrame
-RunService.RenderStepped:Connect(function()
-    if isDragging then
-        GlowFrame.Position = UDim2.new(
-            MainFrame.Position.X.Scale, MainFrame.Position.X.Offset - 10,
-            MainFrame.Position.Y.Scale, MainFrame.Position.Y.Offset - 10
-        )
-        GlowFrame.Size = UDim2.new(
-            MainFrame.Size.X.Scale, MainFrame.Size.X.Offset + 20,
-            MainFrame.Size.Y.Scale, MainFrame.Size.Y.Offset + 20
-        )
-    end
-end)
+local function setGlow(on) end -- glow ถูกปิดแล้ว
 
 -- [v4.5] ลากได้ทั้งก้อน UI ไม่ใช่แค่ TitleBar
 MainFrame.InputBegan:Connect(function(input)
@@ -499,22 +464,43 @@ local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     if isMinimized then
-        MainFrame:TweenSize(UDim2.new(0,180,0,65), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.5, true)
-        Sidebar.Visible = false ContentArea.Visible = false MinBtn.Text = "+"
-        TitleLabel:TweenSizeAndPosition(UDim2.new(0,130,0,25), UDim2.new(0,12,0,5), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
-        MinBtn:TweenPosition(UDim2.new(1,-33,0,6), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
-        InfoFPSLabel.TextXAlignment = Enum.TextXAlignment.Left
-        InfoFPSLabel:TweenSizeAndPosition(UDim2.new(0,100,0,20), UDim2.new(0,12,0,18), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
-        MinimizedStatusLabel.Visible = true
-    else
-        MainFrame:TweenSize(UDim2.new(0,320,0,260), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.5, true)
-        task.delay(0.15, function() Sidebar.Visible = true ContentArea.Visible = true end)
-        MinBtn.Text = "-"
-        TitleLabel:TweenSizeAndPosition(UDim2.new(0.6,0,1,0), UDim2.new(0,15,0,0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
-        MinBtn:TweenPosition(UDim2.new(1,-35,0.5,-12), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
-        InfoFPSLabel.TextXAlignment = Enum.TextXAlignment.Right
-        InfoFPSLabel:TweenSizeAndPosition(UDim2.new(0.3,0,1,0), UDim2.new(1,-135,0,0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
+        -- ซ่อนทุกอย่างก่อน
+        TitleLabel.Visible = false
         MinimizedStatusLabel.Visible = false
+        Sidebar.Visible = false
+        ContentArea.Visible = false
+        MinBtn.Text = "+"
+
+        -- จัด FPS ไว้กลาง
+        InfoFPSLabel.Size = UDim2.new(0,80,0,30)
+        InfoFPSLabel.Position = UDim2.new(0.5,-40,0.5,-15)
+        InfoFPSLabel.TextXAlignment = Enum.TextXAlignment.Center
+        InfoFPSLabel.TextSize = 14
+        InfoFPSLabel.Visible = true
+
+        -- ย่อเหลือแค่กล่อง FPS เล็กๆ
+        MainFrame:TweenSize(UDim2.new(0,90,0,38), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.5, true)
+        MinBtn.Position = UDim2.new(1,-28,0.5,-10)
+    else
+        -- ซ่อนก่อน tween
+        InfoFPSLabel.Visible = false
+        MinBtn.Text = "-"
+
+        -- คืนค่า FPS label
+        InfoFPSLabel.Size = UDim2.new(0,58,0,24)
+        InfoFPSLabel.Position = UDim2.new(1,-150,0.5,-12)
+        InfoFPSLabel.TextXAlignment = Enum.TextXAlignment.Center
+        InfoFPSLabel.TextSize = 12
+
+        MainFrame:TweenSize(UDim2.new(0,320,0,260), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.5, true)
+        MinBtn.Position = UDim2.new(1,-35,0.5,-12)
+
+        task.delay(0.2, function()
+            Sidebar.Visible = true
+            ContentArea.Visible = true
+            TitleLabel.Visible = true
+            InfoFPSLabel.Visible = true
+        end)
     end
 end)
 
@@ -576,11 +562,11 @@ createToggle(TabGfx, "Horror Fog Mode", 4, horrorFogEnabled, function(val)
     if val then
         rainEnabled = false
         ModeText = "Status: Horror Fog" BorderColorNow = Color3.fromRGB(255,0,50)
-        Lighting.FogStart = 0 Lighting.FogEnd = 45
-        Lighting.FogColor = Color3.fromRGB(5,5,10)
-        Lighting.Ambient = Color3.fromRGB(0,0,0)
-        Lighting.OutdoorAmbient = Color3.fromRGB(0,0,0)
-        Lighting.Brightness = 0
+        Lighting.FogStart = 0 Lighting.FogEnd = 60
+        Lighting.FogColor = Color3.fromRGB(8,5,12)
+        Lighting.Ambient = Color3.fromRGB(15,5,5)
+        Lighting.OutdoorAmbient = Color3.fromRGB(10,5,5)
+        Lighting.Brightness = 0.15
     else
         Lighting.FogStart = originalFogStart Lighting.FogEnd = originalFogEnd
         Lighting.FogColor = originalFogColor Lighting.Ambient = originalAmbient
@@ -604,6 +590,40 @@ createToggle(TabGfx, "Rain Mode", 5, rainEnabled, function(val)
         Lighting.FogColor = Color3.fromRGB(120,130,145)
     else
         Lighting.FogStart = originalFogStart Lighting.FogEnd = originalFogEnd
+        Lighting.FogColor = originalFogColor
+    end
+end)
+
+createToggle(TabGfx, "Heavenly Mode", 6, false, function(val)
+    if val then
+        horrorFogEnabled = false rainEnabled = false
+        ModeText = "Status: Heavenly"
+        BorderColorNow = Color3.fromRGB(255,230,150)
+        local p = PROFILES.HEAVENLY
+        Lighting.Brightness = p.brightness
+        Lighting.ExposureCompensation = p.exposure
+        Lighting.ShadowSoftness = p.shadow
+        Lighting.OutdoorAmbient = p.ambient
+        Atmosphere.Color = p.atmoColor
+        Atmosphere.Decay = p.atmoDecay
+        Atmosphere.Glare = p.atmoGlare
+        Atmosphere.Haze = p.atmoHaze
+        Atmosphere.Density = p.atmoDensity
+        ColorCorrection.Contrast = p.contrast
+        ColorCorrection.Saturation = p.saturation
+        ColorCorrection.TintColor = p.tint
+        Bloom.Intensity = p.bloom
+        Bloom.Size = p.bloomSize
+        Bloom.Threshold = p.bloomThreshold
+        DOF.FarIntensity = p.dofFar
+        SunRays.Intensity = p.sunRays
+        Lighting.FogStart = 200
+        Lighting.FogEnd = 800
+        Lighting.FogColor = Color3.fromRGB(220,235,255)
+        Lighting.ClockTime = 12
+    else
+        Lighting.FogStart = originalFogStart
+        Lighting.FogEnd = originalFogEnd
         Lighting.FogColor = originalFogColor
     end
 end)
@@ -837,7 +857,7 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
-print("MYTHICAL SHADER v4.5: Sakura Edition Loaded!")
+print("MYTHICAL SHADER v4.5: Heavenly + Fixes Loaded!")
 
 -- ==================== GRID SIZE SYSTEM ====================
 local camera = workspace.CurrentCamera
@@ -947,4 +967,4 @@ task.spawn(function()
 end)
 
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
-print("MYTHICAL SHADER v4.5: Sakura + Glow + Bounce Ready!")
+print("MYTHICAL SHADER v4.5: Heavenly + No Glow Ready!")
