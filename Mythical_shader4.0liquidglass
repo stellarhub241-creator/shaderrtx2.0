@@ -1,4 +1,4 @@
--- [[ STELLARHUB: MYTHICAL SHADER v4.4 DELTA FIX EDITION ]] --
+-- [[ STELLARHUB: MYTHICAL SHADER v4.5 SAKURA EDITION ]] --
 -- Liquid Glass UI + Flowing Shimmer + Elastic Springs + Smooth Sliding Tabs + Drag-to-Resize
 -- [FIXED] Shimmer loop, += syntax, pcall ครอบ SpringPhysics ทุกจุด
 
@@ -233,9 +233,10 @@ UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 UIStroke.Color = Color3.fromRGB(180,0,255)
 local UIGradientStroke = Instance.new("UIGradient", UIStroke)
 UIGradientStroke.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0,   Color3.fromRGB(180,0,255)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0,220,255)),
-    ColorSequenceKeypoint.new(1,   Color3.fromRGB(180,0,255))
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(255,182,217)),
+    ColorSequenceKeypoint.new(0.33,Color3.fromRGB(180,0,255)),
+    ColorSequenceKeypoint.new(0.66,Color3.fromRGB(0,220,255)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(255,182,217))
 })
 
 local TitleBar = Instance.new("Frame", MainFrame)
@@ -246,7 +247,7 @@ local TitleLabel = Instance.new("TextLabel", TitleBar)
 TitleLabel.Size = UDim2.new(0.6,0,1,0)
 TitleLabel.Position = UDim2.new(0,15,0,0)
 TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "MYTHICAL SHADER v4.4"
+TitleLabel.Text = "MYTHICAL SHADER v4.5"
 TitleLabel.TextColor3 = Color3.fromRGB(255,255,255)
 TitleLabel.TextSize = 13
 TitleLabel.Font = Enum.Font.Code
@@ -263,15 +264,22 @@ MinBtn.Font = Enum.Font.Code
 MinBtn.TextSize = 14
 Instance.new("UICorner",MinBtn).CornerRadius = UDim.new(0,6)
 
+-- [FIX] FPS label กล่องชัดเจน ไม่ชน force touch + ขอบ Sakura
 local InfoFPSLabel = Instance.new("TextLabel", TitleBar)
-InfoFPSLabel.Size = UDim2.new(0.3,0,1,0)
-InfoFPSLabel.Position = UDim2.new(1,-135,0,0)
-InfoFPSLabel.BackgroundTransparency = 1
+InfoFPSLabel.Size = UDim2.new(0,58,0,24)
+InfoFPSLabel.Position = UDim2.new(1,-150,0.5,-12)
+InfoFPSLabel.BackgroundColor3 = Color3.fromRGB(5,3,10)
+InfoFPSLabel.BackgroundTransparency = 0.3
 InfoFPSLabel.Text = "FPS: --"
 InfoFPSLabel.TextColor3 = Color3.fromRGB(0,255,120)
-InfoFPSLabel.TextSize = 11
+InfoFPSLabel.TextSize = 12
 InfoFPSLabel.Font = Enum.Font.Code
-InfoFPSLabel.TextXAlignment = Enum.TextXAlignment.Right
+InfoFPSLabel.TextXAlignment = Enum.TextXAlignment.Center
+InfoFPSLabel.ZIndex = 5
+Instance.new("UICorner", InfoFPSLabel).CornerRadius = UDim.new(0,6)
+local FpsStroke = Instance.new("UIStroke", InfoFPSLabel)
+FpsStroke.Color = Color3.fromRGB(255,182,217)
+FpsStroke.Thickness = 1.2
 
 local MinimizedStatusLabel = Instance.new("TextLabel", TitleBar)
 MinimizedStatusLabel.Size = UDim2.new(1,-24,0,20)
@@ -360,10 +368,11 @@ local function switchTab(tabFrame, btn)
         b.BackgroundTransparency = 0.4
         b.TextColor3 = Color3.fromRGB(180,180,180)
     end
-    tabFrame.Position = UDim2.new(0,25,0,0)
+    tabFrame.Position = UDim2.new(0,30,0,0)
     tabFrame.Visible = true
     pcall(function()
-        TweenService:Create(tabFrame, TweenInfo.new(0.35,Enum.EasingStyle.Quad,Enum.EasingDirection.Out), {Position=UDim2.new(0,0,0,0)}):Play()
+        -- bounce slide เข้ามา
+        TweenService:Create(tabFrame, TweenInfo.new(0.4,Enum.EasingStyle.Back,Enum.EasingDirection.Out), {Position=UDim2.new(0,0,0,0)}):Play()
     end)
     btn.BackgroundColor3 = COLOR_THEMES[currentThemeIndex].primary
     btn.BackgroundTransparency = 0.2
@@ -393,20 +402,95 @@ local b3 = addTabButton("FPS Boost",3, TabOptimize)
 local b4 = addTabButton("Theme",    4, TabTheme)
 switchTab(TabGfx, b1)
 
--- ==================== DRAG ====================
+-- ==================== DRAG + GLOW + LONG PRESS ====================
 local dragToggle, dragStart, startPos
-TitleBar.InputBegan:Connect(function(input)
+local isDragging = false
+local longPressThread = nil
+
+-- Glow frame รอบ UI ตอนลาก
+local GlowFrame = Instance.new("Frame", ScreenGui)
+GlowFrame.Size = UDim2.new(0,340,0,280)
+GlowFrame.Position = MainFrame.Position
+GlowFrame.BackgroundTransparency = 1
+GlowFrame.BorderSizePixel = 0
+GlowFrame.ZIndex = 0
+local GlowStroke = Instance.new("UIStroke", GlowFrame)
+GlowStroke.Thickness = 8
+GlowStroke.Color = Color3.fromRGB(255,182,217)
+GlowStroke.Transparency = 1
+Instance.new("UICorner", GlowFrame).CornerRadius = UDim.new(0,18)
+
+local function setGlow(on)
+    pcall(function()
+        TweenService:Create(GlowStroke, TweenInfo.new(0.25,Enum.EasingStyle.Quad), {
+            Transparency = on and 0.3 or 1
+        }):Play()
+    end)
+end
+
+-- sync glow frame กับ MainFrame
+RunService.RenderStepped:Connect(function()
+    if isDragging then
+        GlowFrame.Position = UDim2.new(
+            MainFrame.Position.X.Scale, MainFrame.Position.X.Offset - 10,
+            MainFrame.Position.Y.Scale, MainFrame.Position.Y.Offset - 10
+        )
+        GlowFrame.Size = UDim2.new(
+            MainFrame.Size.X.Scale, MainFrame.Size.X.Offset + 20,
+            MainFrame.Size.Y.Scale, MainFrame.Size.Y.Offset + 20
+        )
+    end
+end)
+
+-- [v4.5] ลากได้ทั้งก้อน UI ไม่ใช่แค่ TitleBar
+MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragToggle = true dragStart = input.Position startPos = MainFrame.Position
+
+        -- Long press → หด UI นิดนึงแล้วเด้งกลับ
+        longPressThread = task.delay(0.4, function()
+            pcall(function()
+                TweenService:Create(MainFrame, TweenInfo.new(0.15,Enum.EasingStyle.Back,Enum.EasingDirection.In), {
+                    Size = UDim2.new(MainFrame.Size.X.Scale, MainFrame.Size.X.Offset*0.92,
+                                    MainFrame.Size.Y.Scale, MainFrame.Size.Y.Offset*0.92)
+                }):Play()
+                task.wait(0.15)
+                TweenService:Create(MainFrame, TweenInfo.new(0.3,Enum.EasingStyle.Back,Enum.EasingDirection.Out), {
+                    Size = UDim2.new(MainFrame.Size.X.Scale, MainFrame.Size.X.Offset/0.92,
+                                    MainFrame.Size.Y.Scale, MainFrame.Size.Y.Offset/0.92)
+                }):Play()
+            end)
+        end)
+
         input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragToggle = false end
+            if input.UserInputState == Enum.UserInputState.End then
+                dragToggle = false
+                isDragging = false
+                setGlow(false)
+                if longPressThread then
+                    pcall(function() task.cancel(longPressThread) end)
+                    longPressThread = nil
+                end
+            end
         end)
     end
 end)
+
 UserInputService.InputChanged:Connect(function(input)
     if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragToggle then
         local delta = input.Position - dragStart
-        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset+delta.X, startPos.Y.Scale, startPos.Y.Offset+delta.Y)
+        if not isDragging and (math.abs(delta.X) > 3 or math.abs(delta.Y) > 3) then
+            isDragging = true
+            setGlow(true)
+            -- ยกเลิก long press ถ้าเริ่มลาก
+            if longPressThread then
+                pcall(function() task.cancel(longPressThread) end)
+                longPressThread = nil
+            end
+        end
+        if isDragging then
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset+delta.X, startPos.Y.Scale, startPos.Y.Offset+delta.Y)
+        end
     end
 end)
 
@@ -415,7 +499,7 @@ local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     if isMinimized then
-        MainFrame:TweenSize(UDim2.new(0,180,0,65), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.45, true)
+        MainFrame:TweenSize(UDim2.new(0,180,0,65), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.5, true)
         Sidebar.Visible = false ContentArea.Visible = false MinBtn.Text = "+"
         TitleLabel:TweenSizeAndPosition(UDim2.new(0,130,0,25), UDim2.new(0,12,0,5), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
         MinBtn:TweenPosition(UDim2.new(1,-33,0,6), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
@@ -423,7 +507,7 @@ MinBtn.MouseButton1Click:Connect(function()
         InfoFPSLabel:TweenSizeAndPosition(UDim2.new(0,100,0,20), UDim2.new(0,12,0,18), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
         MinimizedStatusLabel.Visible = true
     else
-        MainFrame:TweenSize(UDim2.new(0,320,0,260), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.45, true)
+        MainFrame:TweenSize(UDim2.new(0,320,0,260), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.5, true)
         task.delay(0.15, function() Sidebar.Visible = true ContentArea.Visible = true end)
         MinBtn.Text = "-"
         TitleLabel:TweenSizeAndPosition(UDim2.new(0.6,0,1,0), UDim2.new(0,15,0,0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3)
@@ -753,7 +837,7 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
-print("MYTHICAL SHADER v4.4: Delta Fix Edition Loaded!")
+print("MYTHICAL SHADER v4.5: Sakura Edition Loaded!")
 
 -- ==================== GRID SIZE SYSTEM ====================
 local camera = workspace.CurrentCamera
@@ -863,4 +947,4 @@ task.spawn(function()
 end)
 
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
-print("MYTHICAL SHADER v4.4: Delta Fix — All Systems Ready!")
+print("MYTHICAL SHADER v4.5: Sakura + Glow + Bounce Ready!")
