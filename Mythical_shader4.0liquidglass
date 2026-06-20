@@ -1,6 +1,5 @@
-```lua
--- [[ STELLARHUB: MYTHICAL SHADER v4.9 CINEMATIC EDITION ]] --
--- [v4.9] Fixed UI Resize Responsive, Added Cinematic Darkness, FOV, High Detail
+-- [[ STELLARHUB: MYTHICAL SHADER v4.8 CINEMATIC EDITION ]] --
+-- [v4.8] Smooth scroll+bounce, FPS popup nano mode, Rain fix, Cinematic tab
 
 local Lighting         = game:GetService("Lighting")
 local Terrain          = workspace.Terrain
@@ -40,8 +39,6 @@ local originalFogColor = Lighting.FogColor
 local originalAmbient  = Lighting.Ambient
 local originalBrightness = Lighting.Brightness
 local originalExposure   = Lighting.ExposureCompensation
-local camera = workspace.CurrentCamera
-local originalFOV = camera.FieldOfView
 
 local COLOR_THEMES = {
     { name="Purple", primary=Color3.fromRGB(180,0,255),   secondary=Color3.fromRGB(0,220,255),   text=Color3.fromRGB(220,180,255) },
@@ -129,7 +126,7 @@ local function lerpProfile(a,b,t)
     }
 end
 
--- ==================== RAIN PARTICLES ====================
+-- ==================== RAIN PARTICLES [v4.8 fix] ====================
 local rainFolder     = nil
 local rainConnections = {}
 
@@ -144,8 +141,10 @@ local function createRainParticles()
     clearRainParticles()
     rainFolder      = Instance.new("Folder", workspace)
     rainFolder.Name = "StellarRain"
+    local camera    = workspace.CurrentCamera
     local parts, ripples = {}, {}
 
+    -- Reduced count for optimization
     for i = 1, 70 do
         local p = Instance.new("Part")
         p.Size         = Vector3.new(0.03, math.random(12,22)*0.1, 0.03)
@@ -159,6 +158,7 @@ local function createRainParticles()
         table.insert(parts, p)
     end
 
+    -- Reduced ripple count
     for i = 1, 12 do
         local r = Instance.new("Part")
         r.Size         = Vector3.new(0.1, 0.06, 0.1)
@@ -221,7 +221,6 @@ local function resetFogLighting()
     Lighting.Ambient              = originalAmbient
     Lighting.Brightness           = originalBrightness
     Lighting.ExposureCompensation = originalExposure
-    camera.FieldOfView            = originalFOV
 end
 
 local ModeText       = "Status: Loading..."
@@ -295,6 +294,9 @@ local function runPBRScan()
     end
 end
 task.spawn(runPBRScan)
+workspace.DescendantAdded:Connect(function(v)
+    task.delay(0.1, function() applyPBROnPart(v) end)
+end)
 
 -- ==================== UI BUILD ====================
 local ScreenGui = Instance.new("ScreenGui", CoreGui)
@@ -350,7 +352,7 @@ local TitleLabel = Instance.new("TextLabel", TitleBar)
 TitleLabel.Size                   = UDim2.new(0.55,0,1,0)
 TitleLabel.Position               = UDim2.new(0,15,0,0)
 TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text                   = "MYTHICAL SHADER v4.9"
+TitleLabel.Text                   = "MYTHICAL SHADER v4.8"
 TitleLabel.TextColor3             = Color3.fromRGB(255,255,255)
 TitleLabel.TextSize               = 13
 TitleLabel.Font                   = Enum.Font.Code
@@ -574,12 +576,9 @@ MinBtn.MouseButton1Click:Connect(function()
         MainFrame:TweenSize(UDim2.new(0,320,0,260), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.5, true)
         MinBtn.Position = UDim2.new(1,-32,0.5,-12)
         task.delay(0.25, function()
-            -- ใช้การเช็คขนาด MainFrame ปัจจุบันเพื่อเปิด UI ให้ถูกต้อง
-            local w = MainFrame.Size.X.Offset
-            local h = MainFrame.Size.Y.Offset
-            Sidebar.Visible     = w >= 110 and h >= 90
-            ContentArea.Visible = w >= 110 and h >= 90
-            TitleLabel.Visible  = w >= 90
+            Sidebar.Visible     = true
+            ContentArea.Visible = true
+            TitleLabel.Visible  = true
         end)
     end
 end)
@@ -1141,23 +1140,32 @@ applySpringPhysics(ShowFPSPopupBtn)
 autoCanvas(TabFPS, 6, 30, 6, 30)
 setFpsCap(60)
 
--- ==================== CINEMATIC TAB [v4.9 UPDATE] ====================
+-- ==================== CINEMATIC TAB [v4.8 NEW] ====================
 local CinTitle = Instance.new("TextLabel", TabCinema)
 CinTitle.Size = UDim2.new(1,-16,0,16) 
 CinTitle.Position = UDim2.new(0,8,0,4)
 CinTitle.BackgroundTransparency = 1 
-CinTitle.Text = "🎬 Cinematic Mode (v4.9)"
+CinTitle.Text = "🎬 Cinematic Mode"
 CinTitle.TextColor3 = Color3.fromRGB(200,200,200) 
 CinTitle.TextSize = 11
 CinTitle.Font = Enum.Font.SourceSansBold 
 CinTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-local CinDOFTrack  = Instance.new("Frame", TabCinema)
-local CinConTrack  = Instance.new("Frame", TabCinema)
-local CinDarkTrack = Instance.new("Frame", TabCinema)
-local CinFOVTrack  = Instance.new("Frame", TabCinema)
+local CinDesc = Instance.new("TextLabel", TabCinema)
+CinDesc.Size = UDim2.new(1,-16,0,32) 
+CinDesc.Position = UDim2.new(0,8,0,22)
+CinDesc.BackgroundTransparency = 1
+CinDesc.Text = "มืด contrast สูง bloom น้อย\nเหมือนดูหนังในโรงภาพยนตร์"
+CinDesc.TextColor3 = Color3.fromRGB(140,145,160) 
+CinDesc.TextSize = 10
+CinDesc.Font = Enum.Font.SourceSans 
+CinDesc.TextWrapped = true
+CinDesc.TextXAlignment = Enum.TextXAlignment.Left
 
-createToggle(TabCinema, "Enable Cinematic Mode", 1, cinematicEnabled, function(val)
+local CinDOFTrack = Instance.new("Frame", TabCinema)
+local CinConTrack = Instance.new("Frame", TabCinema)
+
+createToggle(TabCinema, "Cinematic Mode", 3, cinematicEnabled, function(val)
     cinematicEnabled = val
     if val then
         horrorFogEnabled = false 
@@ -1194,111 +1202,127 @@ createToggle(TabCinema, "Enable Cinematic Mode", 1, cinematicEnabled, function(v
         
         CinDOFTrack.BackgroundTransparency = 0.3
         CinConTrack.BackgroundTransparency = 0.3
-        CinDarkTrack.BackgroundTransparency = 0.3
-        CinFOVTrack.BackgroundTransparency = 0.3
     else
         resetFogLighting()
         ModeText = "Status: Normal"
         CinDOFTrack.BackgroundTransparency = 0.7
         CinConTrack.BackgroundTransparency = 0.7
-        CinDarkTrack.BackgroundTransparency = 0.7
-        CinFOVTrack.BackgroundTransparency = 0.7
     end
 end)
 
-createToggle(TabCinema, "High Detail Objects", 2, true, function(val)
-    if val then
-        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level21 end)
-        if cinematicEnabled then Lighting.ShadowSoftness = 0.05 end -- Sharp, highly detailed shadows
-    else
-        if cinematicEnabled then Lighting.ShadowSoftness = PROFILES.CINEMATIC.shadow end
+local CinDOFLabel = Instance.new("TextLabel", TabCinema)
+CinDOFLabel.Size = UDim2.new(1,-16,0,14) 
+CinDOFLabel.Position = UDim2.new(0,8,0,118)
+CinDOFLabel.BackgroundTransparency = 1 
+CinDOFLabel.Text = "DOF Intensity"
+CinDOFLabel.TextColor3 = Color3.fromRGB(180,180,200) 
+CinDOFLabel.TextSize = 10
+CinDOFLabel.Font = Enum.Font.SourceSans 
+CinDOFLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+CinDOFTrack.Size = UDim2.new(1,-16,0,7) 
+CinDOFTrack.Position = UDim2.new(0,8,0,134)
+CinDOFTrack.BackgroundColor3 = Color3.fromRGB(30,25,45) 
+CinDOFTrack.BackgroundTransparency = 0.7
+CinDOFTrack.BorderSizePixel = 0
+Instance.new("UICorner",CinDOFTrack).CornerRadius = UDim.new(0,4)
+
+local CinDOFFill = Instance.new("Frame", CinDOFTrack)
+CinDOFFill.Size = UDim2.new(0.55,0,1,0) 
+CinDOFFill.BackgroundColor3 = Color3.fromRGB(100,120,200)
+CinDOFFill.BorderSizePixel = 0
+Instance.new("UICorner",CinDOFFill).CornerRadius = UDim.new(0,4)
+
+local CinDOFKnob = Instance.new("TextButton", CinDOFTrack)
+CinDOFKnob.Size = UDim2.new(0,14,0,14) 
+CinDOFKnob.Position = UDim2.new(0.55,-7,0.5,-7)
+CinDOFKnob.BackgroundColor3 = Color3.fromRGB(200,210,255) 
+CinDOFKnob.Text = ""
+CinDOFKnob.BorderSizePixel = 0 
+CinDOFKnob.ZIndex = 5
+Instance.new("UICorner",CinDOFKnob).CornerRadius = UDim.new(1,0)
+applySpringPhysics(CinDOFKnob)
+
+local cinDOFDrag = false
+CinDOFKnob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        cinDOFDrag = true
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then cinDOFDrag = false end end)
+    end
+end)
+CinDOFTrack.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        cinDOFDrag = true
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then cinDOFDrag = false end end)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if cinDOFDrag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        if not cinematicEnabled then return end
+        local rel = math.clamp((input.Position.X - CinDOFTrack.AbsolutePosition.X)/CinDOFTrack.AbsoluteSize.X, 0, 1)
+        CinDOFFill.Size = UDim2.new(rel,0,1,0)
+        CinDOFKnob.Position = UDim2.new(rel,-7,0.5,-7)
+        DOF.FarIntensity = rel
     end
 end)
 
--- Helper to create sliders in Cinematic Tab
-local function createCinematicSlider(parent, labelText, yPos, defaultRel, callback)
-    local Label = Instance.new("TextLabel", parent)
-    Label.Size = UDim2.new(1,-16,0,14) 
-    Label.Position = UDim2.new(0,8,0,yPos)
-    Label.BackgroundTransparency = 1 
-    Label.Text = labelText
-    Label.TextColor3 = Color3.fromRGB(180,180,200) 
-    Label.TextSize = 10
-    Label.Font = Enum.Font.SourceSans 
-    Label.TextXAlignment = Enum.TextXAlignment.Left
+local CinConLabel = Instance.new("TextLabel", TabCinema)
+CinConLabel.Size = UDim2.new(1,-16,0,14) 
+CinConLabel.Position = UDim2.new(0,8,0,150)
+CinConLabel.BackgroundTransparency = 1 
+CinConLabel.Text = "Contrast"
+CinConLabel.TextColor3 = Color3.fromRGB(180,180,200) 
+CinConLabel.TextSize = 10
+CinConLabel.Font = Enum.Font.SourceSans 
+CinConLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-    local Track = Instance.new("Frame", parent)
-    Track.Size = UDim2.new(1,-16,0,7) 
-    Track.Position = UDim2.new(0,8,0,yPos+16)
-    Track.BackgroundColor3 = Color3.fromRGB(30,25,45) 
-    Track.BackgroundTransparency = 0.7
-    Track.BorderSizePixel = 0
-    Instance.new("UICorner",Track).CornerRadius = UDim.new(0,4)
+CinConTrack.Size = UDim2.new(1,-16,0,7) 
+CinConTrack.Position = UDim2.new(0,8,0,166)
+CinConTrack.BackgroundColor3 = Color3.fromRGB(30,25,45) 
+CinConTrack.BackgroundTransparency = 0.7
+CinConTrack.BorderSizePixel = 0
+Instance.new("UICorner",CinConTrack).CornerRadius = UDim.new(0,4)
 
-    local Fill = Instance.new("Frame", Track)
-    Fill.Size = UDim2.new(defaultRel,0,1,0) 
-    Fill.BackgroundColor3 = Color3.fromRGB(100,120,200)
-    Fill.BorderSizePixel = 0
-    Instance.new("UICorner",Fill).CornerRadius = UDim.new(0,4)
+local CinConFill = Instance.new("Frame", CinConTrack)
+CinConFill.Size = UDim2.new(0.6,0,1,0) 
+CinConFill.BackgroundColor3 = Color3.fromRGB(180,100,255)
+CinConFill.BorderSizePixel = 0
+Instance.new("UICorner",CinConFill).CornerRadius = UDim.new(0,4)
 
-    local Knob = Instance.new("TextButton", Track)
-    Knob.Size = UDim2.new(0,14,0,14) 
-    Knob.Position = UDim2.new(defaultRel,-7,0.5,-7)
-    Knob.BackgroundColor3 = Color3.fromRGB(200,210,255) 
-    Knob.Text = ""
-    Knob.BorderSizePixel = 0 
-    Knob.ZIndex = 5
-    Instance.new("UICorner",Knob).CornerRadius = UDim.new(1,0)
-    applySpringPhysics(Knob)
+local CinConKnob = Instance.new("TextButton", CinConTrack)
+CinConKnob.Size = UDim2.new(0,14,0,14) 
+CinConKnob.Position = UDim2.new(0.6,-7,0.5,-7)
+CinConKnob.BackgroundColor3 = Color3.fromRGB(220,180,255) 
+CinConKnob.Text = ""
+CinConKnob.BorderSizePixel = 0 
+CinConKnob.ZIndex = 5
+Instance.new("UICorner",CinConKnob).CornerRadius = UDim.new(1,0)
+applySpringPhysics(CinConKnob)
 
-    local isDragging = false
-    Knob.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isDragging = true
-            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then isDragging = false end end)
-        end
-    end)
-    Track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isDragging = true
-            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then isDragging = false end end)
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            if not cinematicEnabled then return end
-            local rel = math.clamp((input.Position.X - Track.AbsolutePosition.X)/Track.AbsoluteSize.X, 0, 1)
-            Fill.Size = UDim2.new(rel,0,1,0)
-            Knob.Position = UDim2.new(rel,-7,0.5,-7)
-            callback(rel)
-        end
-    end)
-    return Track, Fill
-end
-
-CinDOFTrack = createCinematicSlider(TabCinema, "DOF Intensity (หน้าชัดหลังเบลอ)", 85, 0.55, function(rel)
-    DOF.FarIntensity = rel
+local cinConDrag = false
+CinConKnob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        cinConDrag = true
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then cinConDrag = false end end)
+    end
+end)
+CinConTrack.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        cinConDrag = true
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then cinConDrag = false end end)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if cinConDrag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        if not cinematicEnabled then return end
+        local rel = math.clamp((input.Position.X - CinConTrack.AbsolutePosition.X)/CinConTrack.AbsoluteSize.X, 0, 1)
+        CinConFill.Size = UDim2.new(rel,0,1,0)
+        CinConKnob.Position = UDim2.new(rel,-7,0.5,-7)
+        ColorCorrection.Contrast = lerpN(-1, 1, rel)
+    end
 end)
 
-CinConTrack = createCinematicSlider(TabCinema, "Contrast (ความคมชัด/สีสด)", 115, 0.6, function(rel)
-    ColorCorrection.Contrast = lerpN(-0.5, 1.2, rel)
-end)
-
-CinDarkTrack = createCinematicSlider(TabCinema, "Darkness (ปรับความมืด)", 145, 0.5, function(rel)
-    -- แปลงค่า 0-1 ให้เป็นความมืด (ยิ่ง rel น้อย ยิ่งมืดมาก)
-    -- ExposureCompensation ปกติอยู่แถวๆ 0 ถึง 1 เราดรอปให้ติดลบได้ถึง -2
-    Lighting.ExposureCompensation = lerpN(-2.5, 0.5, rel)
-end)
-
-CinFOVTrack = createCinematicSlider(TabCinema, "Camera FOV (ความกว้างมุมกล้อง)", 175, 0.44, function(rel)
-    -- FOV จาก 30 (ซูมเข้าแบบ Portrait) ถึง 120 (กว้างมากแบบ Fish eye)
-    camera.FieldOfView = math.clamp(lerpN(30, 120, rel), 30, 120)
-end)
-
--- ตั้งค่า FOV เริ่มต้นให้ตรงกับ Slider (0.44 = ประมาณ 70 FOV)
-if cinematicEnabled then camera.FieldOfView = lerpN(30, 120, 0.44) end
-
-autoCanvas(TabCinema, 6, 28, 6, 120)
+autoCanvas(TabCinema, 6, 28, 6, 20)
 
 -- ==================== FPS POPUP BOX [v4.8] nano mode ====================
 local FPSPopup = Instance.new("Frame", ScreenGui)
@@ -1474,6 +1498,7 @@ ShowFPSPopupBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==================== GRID SIZE SYSTEM ====================
+local camera = workspace.CurrentCamera
 local GRID   = 64
 local SIZE_PRESETS = {
     {label="1×1",w=1,h=1},{label="1×2",w=1,h=2},{label="2×2",w=2,h=2},
@@ -1485,10 +1510,9 @@ SizeBtn.Text = SIZE_PRESETS[currentSizeIndex].label
 applySpringPhysics(SizeBtn)
 
 local function updateUIVisibility(w, h)
-    -- แก้ไข Threshold ให้ UI แสดงผลไวขึ้นเมื่อขยายขนาดเพียงนิดเดียว
-    Sidebar.Visible     = w >= 110 and h >= 90
-    ContentArea.Visible = w >= 110 and h >= 90
-    TitleLabel.Visible  = w >= 90
+    Sidebar.Visible     = w >= 150 and h >= 120
+    ContentArea.Visible = w >= 150 and h >= 120
+    TitleLabel.Visible  = w >= 100
 end
 
 local function gridPx(slots, axis)
@@ -1499,7 +1523,7 @@ end
 local function applyGridSize(preset)
     local pw = gridPx(preset.w,"x")
     local ph = gridPx(preset.h,"y")
-    updateUIVisibility(math.max(pw,50), math.max(ph,35))
+    updateUIVisibility(pw, ph)
     pcall(function()
         TweenService:Create(MainFrame, TweenInfo.new(0.45,Enum.EasingStyle.Back,Enum.EasingDirection.Out), {
             Size = UDim2.new(0,math.max(pw,50),0,math.max(ph,35))
@@ -1621,6 +1645,4 @@ RunService.RenderStepped:Connect(function(dt)
 end)
 
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
-print("✅ MYTHICAL SHADER v4.9 CINEMATIC: Loaded with FOV & Darkness Update!")
-
-```
+print("✅ MYTHICAL SHADER v4.8 CINEMATIC: Loaded!")
