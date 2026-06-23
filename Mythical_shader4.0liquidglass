@@ -1,4 +1,3 @@
-```lua
 -- ================================================================
 -- [[ STELLARHUB: MYTHICAL SHADER v5.0 ]]
 -- ================================================================
@@ -983,59 +982,40 @@ autoCanvas(TabFPS,6,30,6,30) setFpsCap(60)
 -- SECTION 26: CINEMATIC TAB (stable sliders)
 -- ================================================================
 local cinTracks={}
-
 local function makeSlider(parent,yLbl,labelText,yTrack,fillColor,knobColor,defRel)
     local lbl=Instance.new("TextLabel",parent)
     lbl.Size=UDim2.new(1,-16,0,13) lbl.Position=UDim2.new(0,8,0,yLbl)
     lbl.BackgroundTransparency=1 lbl.Text=labelText
     lbl.TextColor3=Color3.fromRGB(162,168,192) lbl.TextSize=10
     lbl.Font=Enum.Font.SourceSans lbl.TextXAlignment=Enum.TextXAlignment.Left
-    
     local track=Instance.new("Frame",parent)
     track.Size=UDim2.new(1,-16,0,7) track.Position=UDim2.new(0,8,0,yTrack)
     track.BackgroundColor3=Color3.fromRGB(30,25,45) track.BackgroundTransparency=0.7 track.BorderSizePixel=0
     Instance.new("UICorner",track).CornerRadius=UDim.new(0,4)
-    
     local fill=Instance.new("Frame",track)
     fill.Size=UDim2.new(defRel,0,1,0) fill.BackgroundColor3=fillColor fill.BorderSizePixel=0
     Instance.new("UICorner",fill).CornerRadius=UDim.new(0,4)
-    
     local knob=Instance.new("TextButton",track)
     knob.Size=UDim2.new(0,14,0,14) knob.Position=UDim2.new(defRel,-7,0.5,-7)
     knob.BackgroundColor3=knobColor knob.Text="" knob.BorderSizePixel=0 knob.ZIndex=5
     Instance.new("UICorner",knob).CornerRadius=UDim.new(1,0)
     spring(knob)
-    
     return track,fill,knob
 end
 
 local function bindSlider(track,fill,knob,condFn,changeFn)
     local dragging=false
-
-    -- เริ่มลาก (รองรับทั้งการคลิกเมาส์และการทัชหน้าจอ)
-    local function onInputStart(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-        end
-    end
-
-    knob.InputBegan:Connect(onInputStart)
-    track.InputBegan:Connect(onInputStart)
-
-    -- สิ้นสุดการลาก (เช็คแบบ Global แก้ปัญหาเมาส์หลุดขอบ)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-
-    -- ระหว่างลาก
-    UserInputService.InputChanged:Connect(function(input)
+    knob.InputBegan:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+            dragging=true i.Changed:Connect(function() if i.UserInputState==Enum.UserInputState.End then dragging=false end end) end end)
+    track.InputBegan:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+            dragging=true i.Changed:Connect(function() if i.UserInputState==Enum.UserInputState.End then dragging=false end end) end end)
+    UserInputService.InputChanged:Connect(function(i)
         if not dragging then return end
-        if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
+        if i.UserInputType~=Enum.UserInputType.MouseMovement and i.UserInputType~=Enum.UserInputType.Touch then return end
         if condFn and not condFn() then return end
-        
-        local rel=math.clamp((input.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
+        local rel=math.clamp((i.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
         fill.Size=UDim2.new(rel,0,1,0) knob.Position=UDim2.new(rel,-7,0.5,-7)
         pcall(function() changeFn(rel) end)
     end)
@@ -1357,5 +1337,3 @@ end)
 -- ================================================================
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
 print("✅ MYTHICAL SHADER v5.0: Stable + Clean + All features loaded!")
-
-```
