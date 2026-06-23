@@ -1,5 +1,6 @@
+```lua
 -- ================================================================
--- [[ STELLARHUB: MYTHICAL SHADER v5.0 ]]
+-- [[ STELLARHUB: MYTHICAL SHADER v5.1 (Rain Update) ]]
 -- ================================================================
 -- SECTION 1: SERVICES
 -- ================================================================
@@ -37,7 +38,7 @@ local heavenlyEnabled    = false
 local cinematicEnabled   = false
 local currentThemeIndex  = 1
 local targetFpsCap       = 60
-local rainParticleCount  = 40
+local rainParticleCount  = 40 -- เริ่มต้นที่ 40 เพื่อให้เหมาะกับ Glass Material
 local originalFOV        = workspace.CurrentCamera.FieldOfView
 local originalFogStart   = Lighting.FogStart
 local originalFogEnd     = Lighting.FogEnd
@@ -156,7 +157,7 @@ local function resetFogLighting()
 end
 
 -- ================================================================
--- SECTION 8: RAIN SYSTEM (pool-based, ไม่สร้าง/ทำลายซ้ำ)
+-- SECTION 8: RAIN SYSTEM (อัปเดตความสมจริงของเม็ดฝน)
 -- ================================================================
 local rainFolder     = nil
 local rainConnections = {}
@@ -184,10 +185,14 @@ local function createRainParticles()
 
     for i = 1, count do
         local p = Instance.new("Part")
-        p.Size=Vector3.new(0.03,math.random(10,20)*0.1,0.03)
-        p.Material=Enum.Material.Neon
-        p.Color=Color3.fromRGB(math.random(170,210),math.random(210,235),255)
-        p.Transparency=math.random(60,82)/100
+        -- อัปเดตขนาดให้เม็ดฝนดูยาวและสมจริงขึ้น
+        p.Size = Vector3.new(0.04, math.random(15,25)*0.1, 0.04)
+        -- อัปเดตวัสดุเป็น Glass พร้อม Reflectance เพื่อให้สะท้อนแสงรอบข้าง
+        p.Material = Enum.Material.Glass
+        p.Reflectance = 0.6
+        -- สีใสสว่างและโปร่งแสงมากขึ้น
+        p.Color = Color3.fromRGB(200, 230, 255)
+        p.Transparency = math.random(70, 85)/100
         p.CastShadow=false p.Anchored=true p.CanCollide=false p.Parent=rainFolder
         table.insert(rainParts, p)
     end
@@ -212,7 +217,8 @@ local function createRainParticles()
         for i, p in ipairs(rainParts) do
             if p and p.Parent then
                 local ph = i*0.73
-                local fall = (tick()*15 + ph*2.8) % 30
+                -- เพิ่มความเร็วตก (x20) และระยะทางก่อนลูป (% 35) ให้เป็นธรรมชาติ
+                local fall = (tick()*20 + ph*2.8) % 35
                 p.CFrame = CFrame.new(cp.X+math.sin(ph)*32, cp.Y+18-fall, cp.Z+math.cos(ph)*32) * CFrame.Angles(0.18,0,0.06)
             end
         end
@@ -225,9 +231,12 @@ local function createRainParticles()
                 local rz = cp.Z + math.cos(ph)*20
                 local ray = workspace:Raycast(Vector3.new(rx,cp.Y+8,rz), Vector3.new(0,-50,0))
                 local ry  = ray and ray.Position.Y+0.05 or cp.Y-8
+                
                 r.CFrame       = CFrame.new(rx,ry,rz) * CFrame.Angles(0,0,math.pi/2)
-                r.Size         = Vector3.new(0.05,sc,sc)
-                r.Transparency = 0.72+(1-t)*0.22
+                -- อัปเดตคลื่นน้ำให้ขยายใหญ่ขึ้น
+                r.Size         = Vector3.new(0.05, sc*1.5, sc*1.5)
+                -- อัปเดตการเลือนหายของคลื่นน้ำให้สมูทขึ้น
+                r.Transparency = 0.65 + (1-t)*0.3
                 r.Color        = Color3.fromRGB(math.floor(lerpN(155,200,1-t)),math.floor(lerpN(195,230,1-t)),255)
             end
         end
@@ -342,7 +351,7 @@ end
 -- SECTION 12: UI FRAMEWORK
 -- ================================================================
 local ScreenGui = Instance.new("ScreenGui", CoreGui)
-ScreenGui.Name           = "STELLARHUB_MYTHICAL"  -- แก้ชื่อถูก
+ScreenGui.Name           = "STELLARHUB_MYTHICAL"
 ScreenGui.ResetOnSpawn   = false
 ScreenGui.IgnoreGuiInset = true
 
@@ -454,7 +463,7 @@ TitleBar.Size=UDim2.new(1,0,0,35) TitleBar.BackgroundTransparency=1
 
 local TitleLabel = Instance.new("TextLabel",TitleBar)
 TitleLabel.Size=UDim2.new(0.55,0,1,0) TitleLabel.Position=UDim2.new(0,12,0,0)
-TitleLabel.BackgroundTransparency=1 TitleLabel.Text="✦ MYTHICAL SHADER v5.0"
+TitleLabel.BackgroundTransparency=1 TitleLabel.Text="✦ MYTHICAL SHADER v5.1"
 TitleLabel.TextColor3=Color3.fromRGB(255,255,255) TitleLabel.TextSize=11
 TitleLabel.Font=Enum.Font.Code TitleLabel.TextXAlignment=Enum.TextXAlignment.Left
 
@@ -982,40 +991,56 @@ autoCanvas(TabFPS,6,30,6,30) setFpsCap(60)
 -- SECTION 26: CINEMATIC TAB (stable sliders)
 -- ================================================================
 local cinTracks={}
+
 local function makeSlider(parent,yLbl,labelText,yTrack,fillColor,knobColor,defRel)
     local lbl=Instance.new("TextLabel",parent)
     lbl.Size=UDim2.new(1,-16,0,13) lbl.Position=UDim2.new(0,8,0,yLbl)
     lbl.BackgroundTransparency=1 lbl.Text=labelText
     lbl.TextColor3=Color3.fromRGB(162,168,192) lbl.TextSize=10
     lbl.Font=Enum.Font.SourceSans lbl.TextXAlignment=Enum.TextXAlignment.Left
+    
     local track=Instance.new("Frame",parent)
     track.Size=UDim2.new(1,-16,0,7) track.Position=UDim2.new(0,8,0,yTrack)
     track.BackgroundColor3=Color3.fromRGB(30,25,45) track.BackgroundTransparency=0.7 track.BorderSizePixel=0
     Instance.new("UICorner",track).CornerRadius=UDim.new(0,4)
+    
     local fill=Instance.new("Frame",track)
     fill.Size=UDim2.new(defRel,0,1,0) fill.BackgroundColor3=fillColor fill.BorderSizePixel=0
     Instance.new("UICorner",fill).CornerRadius=UDim.new(0,4)
+    
     local knob=Instance.new("TextButton",track)
     knob.Size=UDim2.new(0,14,0,14) knob.Position=UDim2.new(defRel,-7,0.5,-7)
     knob.BackgroundColor3=knobColor knob.Text="" knob.BorderSizePixel=0 knob.ZIndex=5
     Instance.new("UICorner",knob).CornerRadius=UDim.new(1,0)
     spring(knob)
+    
     return track,fill,knob
 end
 
 local function bindSlider(track,fill,knob,condFn,changeFn)
     local dragging=false
-    knob.InputBegan:Connect(function(i)
-        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-            dragging=true i.Changed:Connect(function() if i.UserInputState==Enum.UserInputState.End then dragging=false end end) end end)
-    track.InputBegan:Connect(function(i)
-        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-            dragging=true i.Changed:Connect(function() if i.UserInputState==Enum.UserInputState.End then dragging=false end end) end end)
-    UserInputService.InputChanged:Connect(function(i)
+
+    local function onInputStart(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+        end
+    end
+
+    knob.InputBegan:Connect(onInputStart)
+    track.InputBegan:Connect(onInputStart)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
         if not dragging then return end
-        if i.UserInputType~=Enum.UserInputType.MouseMovement and i.UserInputType~=Enum.UserInputType.Touch then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
         if condFn and not condFn() then return end
-        local rel=math.clamp((i.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
+        
+        local rel=math.clamp((input.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
         fill.Size=UDim2.new(rel,0,1,0) knob.Position=UDim2.new(rel,-7,0.5,-7)
         pcall(function() changeFn(rel) end)
     end)
@@ -1060,7 +1085,7 @@ local sliderDefs={
     {BY+304,"Fog End",                 BY+319, Color3.fromRGB(60,120,180), Color3.fromRGB(140,200,255),0.3,  function(r) Lighting.FogEnd=lerpN(50,2000,r) end},
     {BY+342,"Field of View (30-120°)", BY+357, Color3.fromRGB(80,210,170), Color3.fromRGB(170,255,220),0.44, function(r) pcall(function() workspace.CurrentCamera.FieldOfView=lerpN(30,120,r) end) end},
     {BY+380,"Sun Rays",                BY+395, Color3.fromRGB(255,160,50), Color3.fromRGB(255,210,150),0.05, function(r) SunRays.Intensity=r end},
-    {BY+418,"Rain Particles (10-150)", BY+433, Color3.fromRGB(100,180,255),Color3.fromRGB(180,225,255),0.25, function(r) rainParticleCount=math.floor(lerpN(10,150,r)) if rainEnabled then createRainParticles() end end},
+    {BY+418,"Rain Particles (10-150)", BY+433, Color3.fromRGB(100,180,255),Color3.fromRGB(180,225,255),0.28, function(r) rainParticleCount=math.floor(lerpN(10,150,r)) if rainEnabled then createRainParticles() end end},
 }
 
 for _,def in ipairs(sliderDefs) do
@@ -1336,4 +1361,7 @@ end)
 -- SECTION 30: INIT
 -- ================================================================
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
-print("✅ MYTHICAL SHADER v5.0: Stable + Clean + All features loaded!")
+print("✅ MYTHICAL SHADER v5.1: Rain Update Loaded!")
+
+
+```
