@@ -1584,7 +1584,7 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 -- ================================================================
--- SECTION 31.5: ADVANCED PROCEDURAL GALAXY ENGINE (NO IMAGE)
+-- SECTION 31.5: ADVANCED PROCEDURAL GALAXY ENGINE (OPTIMIZED)
 -- ================================================================
 local function runLogoIntro()
     -- 1. ล็อกและซ่อน UI หลักไว้ก่อนเพื่อความสมบูรณ์แบบของเซอร์ไพรส์
@@ -1617,22 +1617,19 @@ local function runLogoIntro()
         CoreDust.BorderSizePixel = 0
         CoreDust.ZIndex = 502
         
-        -- ไล่โทนสีแกนสว่างวาบจากขาวไปส้มอ่อนและฟ้าใส
         if i % 3 == 0 then CoreDust.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         elseif i % 2 == 0 then CoreDust.BackgroundColor3 = Color3.fromRGB(240, 220, 255)
         else CoreDust.BackgroundColor3 = Color3.fromRGB(200, 240, 255) end
         
-        -- ใช้การกระจายตัวแบบ Gaussian Distribution สุ่มกลุ่มหมอกดาวชิดแกนกลาง
         local radius = (math.random()^2) * 28
         local angle = math.random() * math.pi * 2
         
-        -- ปรับสัดส่วน XY ให้เอียงเป็นวงรี (ตาม Perspective แบนราบ 3D Simulator)
         local posX = math.cos(angle) * radius * 1.6
         local posY = math.sin(angle) * radius * 0.9
         
         CoreDust.Position = UDim2.new(0, posX, 0, posY)
         CoreDust.Size = UDim2.new(0, math.random(2, 4), 0, math.random(2, 4))
-        CoreDust.BackgroundTransparency = 1 -- ซ่อนเริ่มต้นสำหรับอนิเมชั่น Fade-In
+        CoreDust.BackgroundTransparency = 1 
         
         table.insert(starDataContainer, {Obj = CoreDust, XFactor = 1.6, YFactor = 0.9, Radius = radius, Angle = angle, Speed = 0.05 + (math.random()*0.03)})
     end
@@ -1640,14 +1637,13 @@ local function runLogoIntro()
     -- --------------------------------------------------------
     -- SUB-SYSTEM B: แขนเกลียวคู่มหึมา (Dual Galactic Spiral Arms)
     -- --------------------------------------------------------
-    local armStarsCount = 180 -- จำนวนดาวหนาแน่นมากเพื่อความสวยงาม
+    local armStarsCount = 180 
     for i = 1, armStarsCount do
         local ArmStar = Instance.new("TextLabel", GalaxyCanvas)
         ArmStar.BackgroundTransparency = 1
         ArmStar.Font = Enum.Font.Code
         ArmStar.ZIndex = 503
         
-        -- สุ่มอักขระสัญลักษณ์ดวงดาวและขนาดเพื่อมิติระยะชัดลึก (Depth of Field)
         if i % 5 == 0 then
             ArmStar.Text = "✦"
             ArmStar.TextSize = math.random(7, 11)
@@ -1662,14 +1658,12 @@ local function runLogoIntro()
             ArmStar.TextColor3 = Color3.fromRGB(195, 140, 255)
         end
         
-        -- สมการเกลียวคณิตศาสตร์ (Archimedean Spiral Formulation)
-        local armOffset = (i % 2 == 0) and 0 or math.pi -- แยกเป็น 2 ขั้วตรงข้ามชัดเจน
+        local armOffset = (i % 2 == 0) and 0 or math.pi 
         local progress = (i / armStarsCount)
-        local radius = 25 + (progress * 135) -- ระยะยืดจากศูนย์กลางไปยังปลายแขน
-        local spiralTightness = 3.2 -- ความม้วนแน่นของแขนเกลียว
+        local radius = 25 + (progress * 135) 
+        local spiralTightness = 3.2 
         local angle = (progress * spiralTightness) + armOffset
         
-        -- ปรับค่าโครงสร้างวงรีเฉลียง (Isometric Perspective Matrix Mapping)
         local posX = math.cos(angle) * radius * 1.8
         local posY = math.sin(angle) * radius * 0.75
         
@@ -1680,7 +1674,7 @@ local function runLogoIntro()
     end
 
     -- --------------------------------------------------------
-    -- SUB-SYSTEM C: แถบวงแหวนและดาราวงโคจรนอกภพ (Orbital Ring Systems & Alpha-Gamma Stars)
+    -- SUB-SYSTEM C: แถบวงแหวนและดาราวงโคจรนอกภพ
     -- --------------------------------------------------------
     local totalRings = 2
     for r = 1, totalRings do
@@ -1691,20 +1685,17 @@ local function runLogoIntro()
         RingFrame.BorderColor3 = (r == 1) and Color3.fromRGB(120, 100, 255) or Color3.fromRGB(70, 150, 255)
         RingFrame.ZIndex = 501
         
-        -- กำหนดสัดส่วนวงรีให้กว้างโอบล้อมทางช้างเผือกทั้งหมด
         local ringSizeX = 300 + (r * 70)
         local ringSizeY = 125 + (r * 30)
         RingFrame.Size = UDim2.new(0, ringSizeX, 0, ringSizeY)
         RingFrame.Position = UDim2.new(0, 0, 0, 0)
         
-        -- ใช้ UICorner ทำกรอบให้กลายเป็นวงแหวนโค้งเรียบเนียนร้อยเปอร์เซ็นต์
         local corner = Instance.new("UICorner", RingFrame)
         corner.CornerRadius = UDim.new(1, 0)
         
         table.insert(orbitalRings, RingFrame)
     end
     
-    -- เสกดาวผู้นำวิถีขนาดใหญ่ 2 ดวง (Alpha & Gamma Stars ตามโครงสร้างวงนอก)
     local giantStars = {}
     for g = 1, 2 do
         local GiantStar = Instance.new("TextLabel", GalaxyCanvas)
@@ -1715,7 +1706,6 @@ local function runLogoIntro()
         GiantStar.ZIndex = 505
         GiantStar.TextTransparency = 1
         
-        -- ผูกตัวแปรตำแหน่งในระนาบวงรีวงนอกสุด
         local baseAngle = (g == 1) and 0 or math.pi
         table.insert(giantStars, {Obj = GiantStar, Angle = baseAngle, RadiusX = 185, RadiusY = 77, Speed = 0.8})
     end
@@ -1756,7 +1746,7 @@ local function runLogoIntro()
     TweenService:Create(SubBrandLabel, tweenFast, {TextTransparency = 0}):Play()
     
     for _, ring in ipairs(orbitalRings) do
-        TweenService:Create(ring, tweenFast, {BackgroundTransparency = 0.94}):Play() -- แอบมีหมอกวงแหวนจางๆ
+        TweenService:Create(ring, tweenFast, {BackgroundTransparency = 0.94}):Play()
     end
     for _, star in ipairs(starDataContainer) do
         local transparencyProp = star.Obj:IsA("Frame") and "BackgroundTransparency" or "TextTransparency"
@@ -1766,17 +1756,22 @@ local function runLogoIntro()
         TweenService:Create(gStar.Obj, tweenFast, {TextTransparency = 0}):Play()
     end
 
-    -- [Phase 5.2: Live Simulation Loop - ขับเคลื่อนคลื่นฟิสิกส์ให้ดวงดาวเคลื่อนที่แบบเรียลไทม์]
-    local runDuration = 2.8 -- ระยะเวลาหมุนโชว์ความอลังการ (วินาที)
+    -- 🌟 [🔥 แก้ไขตรงนี้] Phase 5.2: เปลี่ยนมาใช้ Heartbeat ป้องกัน Loop ค้างและเฟรมกระตุก
+    local runDuration = 2.8 
     local startClock = os.clock()
     
-    while os.clock() - startClock < runDuration do
+    local conn
+    conn = RunService.Heartbeat:Connect(function()
         local dt = os.clock() - startClock
+        if dt >= runDuration then
+            conn:Disconnect() -- ปลดการเชื่อมต่อเมื่อครบเวลา
+            return
+        end
         
         -- 1. หมุนโครงสร้างหลักของทั้งแกนจักรวาล
         GalaxyCanvas.Rotation = dt * 25
         
-        -- 2. ขยับเศษฝุ่นละอองและดวงดาวตามสมการความเร็วรอบใจกลางที่ไม่เท่ากัน (Differential Rotation)
+        -- 2. ขยับเศษฝุ่นละอองและดวงดาวตามสมการความเร็วรอบใจกลางที่ไม่เท่ากัน
         for _, star in ipairs(starDataContainer) do
             star.Angle = star.Angle + star.Speed * 0.05
             local nextX = math.cos(star.Angle) * star.Radius * star.XFactor
@@ -1784,17 +1779,17 @@ local function runLogoIntro()
             star.Obj.Position = UDim2.new(0, nextX, 0, nextY)
         end
         
-        -- 3. อัปเดตพิกัดดาวบริวารยักษ์สีขาว 2 ดวงให้วิ่งตามขอบวงแหวนนอกสุดอย่างเที่ยงตรง
+        -- 3. อัปเดตพิกัดดาวบริวารยักษ์สีขาว 2 ดวง
         for _, gStar in ipairs(giantStars) do
             gStar.Angle = gStar.Angle + (0.04 * gStar.Speed)
             local gx = math.cos(gStar.Angle) * gStar.RadiusX
             local gy = math.sin(gStar.Angle) * gStar.RadiusY
-            -- ลบครึ่งหนึ่งของขนาดฟอนต์เพื่อให้ดาวอยู่กึ่งกลางเส้นวงโคจรพอดี
             gStar.Obj.Position = UDim2.new(0, gx - 13, 0, gy - 13) 
         end
-        
-        task.wait()
-    end
+    end)
+
+    -- รอให้เอฟเฟกต์หมุนจนครบเวลา 2.8 วินาทีก่อนไป Phase ถัดไป
+    task.wait(runDuration)
 
     -- [Phase 5.3: Cosmic Collapse - Fade-Out ยุบตัวทุกอย่างหายไปเพื่อเปิดสคริปต์]
     local tweenFadeOut = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
@@ -1815,19 +1810,27 @@ local function runLogoIntro()
     end
     
     task.wait(0.6)
-    IntroFrame:Destroy() -- เคลียร์หน่วยความจำของ Engine ทิ้งทั้งหมดร้อยเปอร์เซ็นต์
+    IntroFrame:Destroy() 
     
     -- 6. รันคำสั่งเปิดตัวหน้าต่าง UI หลักด้วยเอฟเฟกต์กางปีกนุ่มนวล (Cinematic Elastic Pop)
     MainFrame.Visible = true
     local finalSize = MainFrame.Size
-    MainFrame.Size = UDim2.new(0, finalSize.X.Offset - 50, 0, finalSize.Y.Offset - 50) -- ย่อขนาดก่อนดีดตัว
+    MainFrame.Size = UDim2.new(0, finalSize.X.Offset - 50, 0, finalSize.Y.Offset - 50) 
     
     TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
         Size = finalSize
     }):Play()
 end
+
 -- ================================================================
 -- SECTION 32: INIT
 -- ================================================================
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
-print("✅ MYTHICAL SHADER v5.3 — Sakura / Full Moon / Cinema Fix / Instant Slider!")
+
+-- 🌟 [🔥 แก้ไขตรงนี้] รัน Intro แบบ Async ผ่าน task.spawn เพื่อให้ UI หลักโหลดทันทีโดยไม่ติดขัด
+task.spawn(function()
+    runLogoIntro()
+end)
+
+print("✅ MYTHICAL SHADER v5.3 — Galaxy Intro + All Features!")
+
