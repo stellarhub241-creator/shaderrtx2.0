@@ -1,5 +1,5 @@
 -- ================================================================
--- [[ STELLARHUB: MYTHICAL SHADER v5.2 ]]
+-- [[ STELLARHUB: MYTHICAL SHADER v5.3 ]]
 -- ================================================================
 -- SECTION 1: SERVICES
 -- ================================================================
@@ -36,9 +36,12 @@ local rainEnabled        = false
 local heavenlyEnabled    = false
 local cinematicEnabled   = false
 local windEnabled        = false
+local sakuraEnabled      = false
 local currentThemeIndex  = 1
 local targetFpsCap       = 60
 local rainParticleCount  = 40
+local sakuraCount        = 35
+local windStrength       = 0.5
 local originalFOV        = workspace.CurrentCamera.FieldOfView
 local originalFogStart   = Lighting.FogStart
 local originalFogEnd     = Lighting.FogEnd
@@ -65,14 +68,17 @@ local COLOR_THEMES = {
 
 -- ================================================================
 -- SECTION 4: SKY PRESETS
+-- [NEW] Full Moon เพิ่มมา
 -- ================================================================
 local SKY_PRESETS = {
-    COSMIC    = {name="🌌 Nebula Space", bk="rbxassetid://152703816",  dn="rbxassetid://152703803",  ft="rbxassetid://152703813",  lf="rbxassetid://152703806",  rt="rbxassetid://152703812",  up="rbxassetid://152703811",  star=10000, time=18  },
-    PASTEL    = {name="🌸 Pastel Sky",   bk="rbxassetid://10143500350",dn="rbxassetid://10143500350",ft="rbxassetid://10143500350",lf="rbxassetid://10143500350",rt="rbxassetid://10143500350",up="rbxassetid://10143500350",star=100,   time=7.5 },
-    CYBERPUNK = {name="🌃 Neon Cyber",   bk="rbxassetid://252703816",  dn="rbxassetid://252703803",  ft="rbxassetid://252703813",  lf="rbxassetid://252703806",  rt="rbxassetid://252703812",  up="rbxassetid://252703811",  star=5000,  time=17.5},
-    REALISTIC = {name="☀️ Realistic",    bk="rbxassetid://1079349813", dn="rbxassetid://1079349813", ft="rbxassetid://1079349813", lf="rbxassetid://1079349813", rt="rbxassetid://1079349813", up="rbxassetid://1079349813", star=3000,  time=12  },
-    MIDNIGHT  = {name="🌙 Midnight",     bk="rbxassetid://152703816",  dn="rbxassetid://152703803",  ft="rbxassetid://152703813",  lf="rbxassetid://152703806",  rt="rbxassetid://152703812",  up="rbxassetid://152703811",  star=15000, time=0   },
-    SUNSET    = {name="🌅 Sunset",       bk="rbxassetid://1079349813", dn="rbxassetid://1079349813", ft="rbxassetid://1079349813", lf="rbxassetid://1079349813", rt="rbxassetid://1079349813", up="rbxassetid://1079349813", star=200,   time=19  },
+    COSMIC    = {name="🌌 Nebula Space", bk="rbxassetid://152703816",  dn="rbxassetid://152703803",  ft="rbxassetid://152703813",  lf="rbxassetid://152703806",  rt="rbxassetid://152703812",  up="rbxassetid://152703811",  star=10000, time=18,   moonSize=11, brightness=1.8, ambient=Color3.fromRGB(20,28,55)},
+    PASTEL    = {name="🌸 Pastel Sky",   bk="rbxassetid://10143500350",dn="rbxassetid://10143500350",ft="rbxassetid://10143500350",lf="rbxassetid://10143500350",rt="rbxassetid://10143500350",up="rbxassetid://10143500350",star=100,   time=7.5,  moonSize=11, brightness=1.5, ambient=Color3.fromRGB(50,50,60)},
+    CYBERPUNK = {name="🌃 Neon Cyber",   bk="rbxassetid://252703816",  dn="rbxassetid://252703803",  ft="rbxassetid://252703813",  lf="rbxassetid://252703806",  rt="rbxassetid://252703812",  up="rbxassetid://252703811",  star=5000,  time=17.5, moonSize=11, brightness=1.8, ambient=Color3.fromRGB(20,28,55)},
+    REALISTIC = {name="☀️ Realistic",    bk="rbxassetid://1079349813", dn="rbxassetid://1079349813", ft="rbxassetid://1079349813", lf="rbxassetid://1079349813", rt="rbxassetid://1079349813", up="rbxassetid://1079349813", star=3000,  time=12,   moonSize=11, brightness=1.5, ambient=Color3.fromRGB(50,50,60)},
+    MIDNIGHT  = {name="🌙 Midnight",     bk="rbxassetid://152703816",  dn="rbxassetid://152703803",  ft="rbxassetid://152703813",  lf="rbxassetid://152703806",  rt="rbxassetid://152703812",  up="rbxassetid://152703811",  star=15000, time=0,    moonSize=11, brightness=1.8, ambient=Color3.fromRGB(20,28,55)},
+    SUNSET    = {name="🌅 Sunset",       bk="rbxassetid://1079349813", dn="rbxassetid://1079349813", ft="rbxassetid://1079349813", lf="rbxassetid://1079349813", rt="rbxassetid://1079349813", up="rbxassetid://1079349813", star=200,   time=19,   moonSize=11, brightness=2.2, ambient=Color3.fromRGB(80,50,30)},
+    -- [NEW] Full Moon: จันทร์เต็มดวง สว่างพอมองเห็น ไม่มืด
+    FULLMOON  = {name="🌕 Full Moon",    bk="rbxassetid://152703816",  dn="rbxassetid://152703803",  ft="rbxassetid://152703813",  lf="rbxassetid://152703806",  rt="rbxassetid://152703812",  up="rbxassetid://152703811",  star=12000, time=0,    moonSize=35, brightness=1.4, ambient=Color3.fromRGB(45,55,90)},
 }
 
 -- ================================================================
@@ -108,6 +114,8 @@ local PROFILES = {
     HEAVENLY = {brightness=1.6, exposure=0.12, shadow=0.15,ambient=Color3.fromRGB(160,170,220),atmoColor=Color3.fromRGB(200,220,255),atmoDecay=Color3.fromRGB(160,185,240),atmoGlare=1.4, atmoHaze=1.0,atmoDensity=0.12,contrast=0.15,saturation=0.35,tint=Color3.fromRGB(240,238,220),bloom=0.55,bloomSize=20,bloomThreshold=0.6, dofFar=0.1, sunRays=0.35},
     CINEMATIC= {brightness=0.9, exposure=-0.2, shadow=0.7, ambient=Color3.fromRGB(18,18,22),   atmoColor=Color3.fromRGB(60,60,80),  atmoDecay=Color3.fromRGB(20,20,30),  atmoGlare=0.0, atmoHaze=1.0,atmoDensity=0.3, contrast=0.6, saturation=-0.1,tint=Color3.fromRGB(200,210,230),bloom=0.08,bloomSize=8, bloomThreshold=0.98,dofFar=0.55,sunRays=0.05},
     HORROR   = {brightness=0.4, exposure=-0.3, shadow=0.8, ambient=Color3.fromRGB(12,18,8),    atmoColor=Color3.fromRGB(30,45,20),  atmoDecay=Color3.fromRGB(8,14,5),    atmoGlare=0.0, atmoHaze=2.2,atmoDensity=0.38,contrast=0.5, saturation=-0.5,tint=Color3.fromRGB(140,180,120),bloom=0.1, bloomSize=8, bloomThreshold=0.95,dofFar=0.6, sunRays=0.0 },
+    -- [NEW] Full Moon profile: ambient สว่างพอมองเห็น
+    FULLMOON = {brightness=1.4, exposure=0.1,  shadow=0.3, ambient=Color3.fromRGB(45,55,90),   atmoColor=Color3.fromRGB(30,40,80),  atmoDecay=Color3.fromRGB(15,20,50),  atmoGlare=0.3, atmoHaze=1.2,atmoDensity=0.25,contrast=0.2, saturation=0.15,tint=Color3.fromRGB(200,215,255),bloom=0.6, bloomSize=20,bloomThreshold=0.55,dofFar=0.3, sunRays=0.0 },
 }
 
 -- ================================================================
@@ -145,12 +153,11 @@ local function applyLighting(p)
     end)
 end
 
--- [FIX] Cinema blend: ซ้อนทับ profile ปัจจุบันโดยไม่ reset
-local cinContrast    = 0.6
-local cinSaturation  = -0.1
-local cinDofFar      = 0.55
-local cinBloomThresh = 0.98
-local cinShadow      = 0.65
+-- [FIX] Cinema blend ซ้อนทับ mode ปัจจุบัน ไม่ override ทั้งหมด
+local cinContrast   = 0.6
+local cinSaturation = -0.1
+local cinDofFar     = 0.55
+local cinShadow     = 0.65
 
 local function applyCinematicBlend()
     if not cinematicEnabled then return end
@@ -205,62 +212,51 @@ local rainParts       = {}
 local rainRipples     = {}
 
 local function clearRainParticles()
-    for _, c in pairs(rainConnections) do pcall(function() c:Disconnect() end) end
-    rainConnections = {}
+    for _,c in pairs(rainConnections) do pcall(function() c:Disconnect() end) end
+    rainConnections={}
     if rainFolder and rainFolder.Parent then rainFolder:Destroy() end
     rainFolder=nil rainParts={} rainRipples={}
 end
 
 local function createRainParticles()
     clearRainParticles()
-    rainFolder      = Instance.new("Folder", workspace)
-    rainFolder.Name = "StellarRain"
-    local cam       = workspace.CurrentCamera
-    local count     = math.clamp(rainParticleCount, 10, 150)
-
-    for i = 1, count do
-        local p = Instance.new("Part")
-        p.Size        = Vector3.new(0.045, math.random(18,30)*0.1, 0.045)
-        p.Material    = Enum.Material.Glass
-        p.Reflectance = math.random(70,90)/100
-        p.Color       = Color3.fromRGB(math.random(200,230), math.random(225,245), 255)
-        p.Transparency= math.random(55,72)/100
+    rainFolder=Instance.new("Folder",workspace) rainFolder.Name="StellarRain"
+    local cam=workspace.CurrentCamera
+    local count=math.clamp(rainParticleCount,10,150)
+    for i=1,count do
+        local p=Instance.new("Part")
+        p.Size=Vector3.new(0.045,math.random(18,30)*0.1,0.045)
+        p.Material=Enum.Material.Glass p.Reflectance=math.random(70,90)/100
+        p.Color=Color3.fromRGB(math.random(200,230),math.random(225,245),255)
+        p.Transparency=math.random(55,72)/100
         p.CastShadow=false p.Anchored=true p.CanCollide=false p.Parent=rainFolder
-        table.insert(rainParts, p)
+        table.insert(rainParts,p)
     end
-
-    local rippleCount = math.max(6, math.floor(count*0.18))
-    for i = 1, rippleCount do
-        local r = Instance.new("Part")
+    local rippleCount=math.max(6,math.floor(count*0.18))
+    for i=1,rippleCount do
+        local r=Instance.new("Part")
         r.Size=Vector3.new(0.1,0.05,0.1) r.Material=Enum.Material.Glass r.Reflectance=0.7
         r.Color=Color3.fromRGB(180,215,255) r.Transparency=0.82
         r.CastShadow=false r.Anchored=true r.CanCollide=false
         r.Shape=Enum.PartType.Cylinder r.Parent=rainFolder
-        table.insert(rainRipples, r)
+        table.insert(rainRipples,r)
     end
-
-    local frame = 0
-    local conn = RunService.Heartbeat:Connect(function()
-        frame=frame+1
-        if frame%2~=0 then return end
+    local frame=0
+    local conn=RunService.Heartbeat:Connect(function()
+        frame=frame+1 if frame%2~=0 then return end
         if not rainFolder or not rainFolder.Parent then return end
-        local cp=cam.CFrame.Position
-        local t=tick()
+        local cp=cam.CFrame.Position local t=tick()
         for i,p in ipairs(rainParts) do
             if p and p.Parent then
-                local ph=i*0.73
-                local fall=(t*16+ph*2.8)%32
+                local ph=i*0.73 local fall=(t*16+ph*2.8)%32
                 p.Reflectance=0.65+math.sin(t*3+ph)*0.25
                 p.CFrame=CFrame.new(cp.X+math.sin(ph)*34,cp.Y+20-fall,cp.Z+math.cos(ph)*34)*CFrame.Angles(0.18,0,0.06)
             end
         end
         for i,r in ipairs(rainRipples) do
             if r and r.Parent then
-                local rt=(t*0.7+i*0.65)%1
-                local sc=0.3+rt*3.5
-                local ph=i*1.13
-                local rx=cp.X+math.sin(ph)*22
-                local rz=cp.Z+math.cos(ph)*22
+                local rt=(t*0.7+i*0.65)%1 local sc=0.3+rt*3.5 local ph=i*1.13
+                local rx=cp.X+math.sin(ph)*22 local rz=cp.Z+math.cos(ph)*22
                 local ray=workspace:Raycast(Vector3.new(rx,cp.Y+8,rz),Vector3.new(0,-50,0))
                 local ry=ray and ray.Position.Y+0.05 or cp.Y-8
                 r.CFrame=CFrame.new(rx,ry,rz)*CFrame.Angles(0,0,math.pi/2)
@@ -271,73 +267,139 @@ local function createRainParticles()
             end
         end
     end)
-    table.insert(rainConnections, conn)
+    table.insert(rainConnections,conn)
 end
 
 -- ================================================================
--- SECTION 9: WIND SYSTEM
+-- SECTION 9: SAKURA SYSTEM
+-- [NEW] กลีบซากุระหล่นแบบฝน แกว่งซ้ายขวา หมุน สีชมพู
 -- ================================================================
-local windConnections = {}
-local windStrength    = 0.5  -- 0-1
-local windParts       = {}
+local sakuraFolder     = nil
+local sakuraConns      = {}
+local sakuraParts      = {}
+
+local SAKURA_COLORS = {
+    Color3.fromRGB(255,182,210),
+    Color3.fromRGB(255,200,220),
+    Color3.fromRGB(255,160,195),
+    Color3.fromRGB(255,210,225),
+    Color3.fromRGB(240,150,180),
+}
+
+local function clearSakura()
+    for _,c in pairs(sakuraConns) do pcall(function() c:Disconnect() end) end
+    sakuraConns={}
+    if sakuraFolder and sakuraFolder.Parent then sakuraFolder:Destroy() end
+    sakuraFolder=nil sakuraParts={}
+end
+
+local function createSakura()
+    clearSakura()
+    sakuraFolder=Instance.new("Folder",workspace) sakuraFolder.Name="StellarSakura"
+    local cam=workspace.CurrentCamera
+    local count=math.clamp(sakuraCount,10,120)
+
+    for i=1,count do
+        local p=Instance.new("Part")
+        -- กลีบดอกไม้: แบนๆ วงรี
+        local sz=math.random(8,16)*0.1
+        p.Size=Vector3.new(sz,0.05,sz*0.7)
+        p.Material=Enum.Material.SmoothPlastic
+        p.Color=SAKURA_COLORS[math.random(#SAKURA_COLORS)]
+        p.Transparency=math.random(10,30)/100
+        p.Reflectance=0.15
+        p.CastShadow=false p.Anchored=true p.CanCollide=false p.Parent=sakuraFolder
+        -- phase สุ่มแต่ละกลีบ
+        table.insert(sakuraParts,{
+            part  = p,
+            phase = math.random()*math.pi*2,
+            swayX = (math.random()-0.5)*22,
+            swayZ = (math.random()-0.5)*22,
+            speed = math.random(4,9)*0.1,       -- ความเร็วหล่น
+            rot   = math.random()*math.pi*2,     -- rotation เริ่มต้น
+            rotSpd= (math.random()-0.5)*3,       -- ความเร็วหมุน
+            drift = (math.random()-0.5)*0.8,     -- drift ซ้ายขวา
+        })
+    end
+
+    local frame=0
+    local conn=RunService.Heartbeat:Connect(function()
+        frame=frame+1 if frame%2~=0 then return end
+        if not sakuraFolder or not sakuraFolder.Parent then return end
+        local cp=cam.CFrame.Position
+        local t=tick()
+        for _,d in ipairs(sakuraParts) do
+            if d.part and d.part.Parent then
+                local fall=(t*d.speed+d.phase*3)%28
+                local sway=math.sin(t*0.8+d.phase)*3.5  -- แกว่งซ้ายขวา
+                local swayZ=math.cos(t*0.6+d.phase)*2.5
+                local x=cp.X+d.swayX+sway
+                local z=cp.Z+d.swayZ+swayZ
+                local y=cp.Y+16-fall
+                local rotY=d.rot+t*d.rotSpd
+                d.part.CFrame=CFrame.new(x,y,z)
+                    *CFrame.Angles(
+                        math.sin(t*1.2+d.phase)*0.4,  -- เอียงหน้าหลัง
+                        rotY,                           -- หมุนรอบแกน Y
+                        math.cos(t*0.9+d.phase)*0.3   -- เอียงซ้ายขวา
+                    )
+            end
+        end
+    end)
+    table.insert(sakuraConns,conn)
+end
+
+-- ================================================================
+-- SECTION 10: WIND SYSTEM
+-- ================================================================
+local windConns = {}
+local windParts = {}
 
 local function clearWind()
-    for _,c in pairs(windConnections) do pcall(function() c:Disconnect() end) end
-    windConnections = {}
-    -- คืน CFrame เดิม
+    for _,c in pairs(windConns) do pcall(function() c:Disconnect() end) end
+    windConns={}
     for _,d in pairs(windParts) do
-        pcall(function()
-            if d.part and d.part.Parent then
-                d.part.CFrame = d.origin
-            end
-        end)
+        pcall(function() if d.part and d.part.Parent then d.part.CFrame=d.origin end end)
     end
-    windParts = {}
+    windParts={}
 end
 
 local function startWind()
     clearWind()
-    -- scan หา Part ที่น่าจะเป็นต้นไม้/หญ้า (ขนาดเล็ก, ไม่ใช่ Anchored ที่ใหญ่)
-    local cam = workspace.CurrentCamera
+    local cam=workspace.CurrentCamera
     for _,v in pairs(workspace:GetDescendants()) do
         pcall(function()
             if (v:IsA("BasePart") or v:IsA("MeshPart")) and v.Anchored then
-                local sz = v.Size
-                local isSmall = sz.X<4 and sz.Z<4 and sz.Y<12
-                local dist = (v.Position-cam.CFrame.Position).Magnitude
-                if isSmall and dist<150 and v.Name~="StellarRain" then
+                local sz=v.Size
+                if sz.X<4 and sz.Z<4 and sz.Y<12 and (v.Position-cam.CFrame.Position).Magnitude<150 then
                     table.insert(windParts,{
-                        part   = v,
-                        origin = v.CFrame,
-                        phase  = math.random()*math.pi*2,
-                        freq   = 0.8+math.random()*0.8,
-                        amp    = 0.012+math.random()*0.018,
+                        part=v, origin=v.CFrame,
+                        phase=math.random()*math.pi*2,
+                        freq=0.8+math.random()*0.8,
+                        amp=0.012+math.random()*0.018,
                     })
                 end
             end
         end)
     end
-
-    local conn = RunService.Heartbeat:Connect(function()
+    local conn=RunService.Heartbeat:Connect(function()
         if not windEnabled then return end
-        local t   = tick()
-        local str = windStrength
+        local t=tick()
         for _,d in pairs(windParts) do
             pcall(function()
                 if d.part and d.part.Parent then
-                    local wave  = math.sin(t*d.freq+d.phase)*d.amp*str
-                    local wave2 = math.cos(t*d.freq*0.7+d.phase)*d.amp*str*0.5
-                    d.part.CFrame = d.origin
-                        * CFrame.Angles(wave, wave2*0.3, wave*0.5)
+                    local wave=math.sin(t*d.freq+d.phase)*d.amp*windStrength
+                    local wave2=math.cos(t*d.freq*0.7+d.phase)*d.amp*windStrength*0.5
+                    d.part.CFrame=d.origin*CFrame.Angles(wave,wave2*0.3,wave*0.5)
                 end
             end)
         end
     end)
-    table.insert(windConnections, conn)
+    table.insert(windConns,conn)
 end
 
 -- ================================================================
--- SECTION 10: TIME LOOP
+-- SECTION 11: TIME LOOP
 -- ================================================================
 local ModeText       = "Status: Loading..."
 local BorderColorNow = Color3.fromRGB(180,0,255)
@@ -346,29 +408,26 @@ local rainbowHue     = 0
 task.spawn(function()
     while task.wait(0.25) do
         if not horrorFogEnabled and not rainEnabled and not heavenlyEnabled then
-            local t = Lighting.ClockTime
+            local t=Lighting.ClockTime
             local p
             if     t>=5  and t<6  then p=lerpProfile(PROFILES.NIGHT,PROFILES.DAWN,(t-5))     ModeText="Status: Dawn"        BorderColorNow=Color3.fromRGB(255,180,200)
             elseif t>=6  and t<15 then p=PROFILES.DAY                                          ModeText="Status: Day"         BorderColorNow=Color3.fromRGB(255,220,100)
             elseif t>=15 and t<19 then p=lerpProfile(PROFILES.DAY,PROFILES.GOLDEN,(t-15)/4)   ModeText="Status: Golden Hour" BorderColorNow=Color3.fromRGB(255,160,80)
             elseif t>=19 and t<21 then p=lerpProfile(PROFILES.GOLDEN,PROFILES.NIGHT,(t-19)/2) ModeText="Status: Sunset"      BorderColorNow=Color3.fromRGB(150,180,255)
             else                       p=PROFILES.NIGHT                                         ModeText="Status: Night"       BorderColorNow=Color3.fromRGB(100,180,255) end
-            if not isFpsBoostOn then
-                applyLighting(p)
-                applyCinematicBlend()
-            end
+            if not isFpsBoostOn then applyLighting(p) applyCinematicBlend() end
         end
     end
 end)
 
 -- ================================================================
--- SECTION 11: PBR
+-- SECTION 12: PBR
 -- ================================================================
 local function applyPBROnPart(v)
     if not pbrEnabled or isFpsBoostOn then return end
     if not v or not v.Parent then return end
     if not (v:IsA("BasePart") or v:IsA("MeshPart")) then return end
-    v.CastShadow = true
+    v.CastShadow=true
     local m=v.Material local r=0
     if m==Enum.Material.Concrete        then r=0.15
     elseif m==Enum.Material.SmoothPlastic then r=0.35
@@ -389,8 +448,7 @@ local function applyPBROnPart(v)
 end
 
 local function runPBRScan()
-    local n=0
-    local cam=workspace.CurrentCamera
+    local n=0 local cam=workspace.CurrentCamera
     for _,v in pairs(workspace:GetDescendants()) do
         pcall(function()
             if v:IsA("BasePart") or v:IsA("MeshPart") then
@@ -406,7 +464,7 @@ workspace.DescendantAdded:Connect(function(v)
 end)
 
 -- ================================================================
--- SECTION 12: FPS BOOST
+-- SECTION 13: FPS BOOST
 -- ================================================================
 local function triggerFPSBoost(on)
     isFpsBoostOn=on
@@ -415,9 +473,7 @@ local function triggerFPSBoost(on)
         for _,v in pairs(workspace:GetDescendants()) do
             pcall(function()
                 if v:IsA("BasePart") or v:IsA("MeshPart") then
-                    if not originalMaterials[v] then
-                        originalMaterials[v]=v.Material originalShadows[v]=v.CastShadow
-                    end
+                    if not originalMaterials[v] then originalMaterials[v]=v.Material originalShadows[v]=v.CastShadow end
                     v.Material=Enum.Material.SmoothPlastic v.CastShadow=false v.Reflectance=0
                 elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency=1 end
             end)
@@ -427,9 +483,7 @@ local function triggerFPSBoost(on)
     else
         local n=0
         for v,mat in pairs(originalMaterials) do
-            pcall(function()
-                if v and v.Parent then v.Material=mat v.CastShadow=originalShadows[v] or false end
-            end)
+            pcall(function() if v and v.Parent then v.Material=mat v.CastShadow=originalShadows[v] or false end end)
             n=n+1 if n%300==0 then task.wait() end
         end
         for _,v in pairs(workspace:GetDescendants()) do
@@ -442,7 +496,7 @@ local function triggerFPSBoost(on)
 end
 
 -- ================================================================
--- SECTION 13: UI FRAMEWORK
+-- SECTION 14: UI FRAMEWORK
 -- ================================================================
 local ScreenGui=Instance.new("ScreenGui",CoreGui)
 ScreenGui.Name="STELLARHUB_MYTHICAL" ScreenGui.ResetOnSpawn=false ScreenGui.IgnoreGuiInset=true
@@ -497,7 +551,7 @@ local function addHoldSquish(frame)
 end
 
 -- ================================================================
--- SECTION 14: MAIN FRAME
+-- SECTION 15: MAIN FRAME
 -- ================================================================
 local MainFrame=Instance.new("Frame",ScreenGui)
 MainFrame.Size=UDim2.new(0,330,0,270)
@@ -533,7 +587,6 @@ UIGradientStroke.Color=ColorSequence.new({
     ColorSequenceKeypoint.new(1,Color3.fromRGB(255,182,217)),
 })
 
--- Liquid Glass layers
 local GlassRefraction=Instance.new("Frame",MainFrame)
 GlassRefraction.Size=UDim2.new(1,0,0.5,0) GlassRefraction.Position=UDim2.new(0,0,0,0)
 GlassRefraction.BackgroundColor3=Color3.fromRGB(200,235,255)
@@ -558,14 +611,14 @@ Instance.new("UICorner",GlassHighlight).CornerRadius=UDim.new(1,0)
 addHoldSquish(MainFrame)
 
 -- ================================================================
--- SECTION 15: TITLE BAR
+-- SECTION 16: TITLE BAR
 -- ================================================================
 local TitleBar=Instance.new("Frame",MainFrame)
 TitleBar.Size=UDim2.new(1,0,0,36) TitleBar.BackgroundTransparency=1 TitleBar.ZIndex=5
 
 local TitleLabel=Instance.new("TextLabel",TitleBar)
 TitleLabel.Size=UDim2.new(0.6,0,1,0) TitleLabel.Position=UDim2.new(0,12,0,0)
-TitleLabel.BackgroundTransparency=1 TitleLabel.Text="✦ MYTHICAL SHADER v5.2"
+TitleLabel.BackgroundTransparency=1 TitleLabel.Text="✦ MYTHICAL SHADER v5.3"
 TitleLabel.TextColor3=Color3.fromRGB(255,255,255) TitleLabel.TextSize=11
 TitleLabel.Font=Enum.Font.Code TitleLabel.TextXAlignment=Enum.TextXAlignment.Left TitleLabel.ZIndex=6
 
@@ -586,7 +639,7 @@ Instance.new("UIStroke",SizeBtn).Color=Color3.fromRGB(80,60,110)
 spring(SizeBtn)
 
 -- ================================================================
--- SECTION 16: SIDEBAR
+-- SECTION 17: SIDEBAR + CONTENT
 -- ================================================================
 local Sidebar=Instance.new("ScrollingFrame",MainFrame)
 Sidebar.Size=UDim2.new(0,90,1,-36) Sidebar.Position=UDim2.new(0,0,0,36)
@@ -605,7 +658,7 @@ ContentArea.Size=UDim2.new(1,-91,1,-36) ContentArea.Position=UDim2.new(0,91,0,36
 ContentArea.BackgroundTransparency=1 ContentArea.ClipsDescendants=true
 
 -- ================================================================
--- SECTION 17: TABS
+-- SECTION 18: TABS
 -- ================================================================
 local function makeTab()
     local s=Instance.new("ScrollingFrame",ContentArea)
@@ -633,7 +686,7 @@ local TAB_DEFS={
 }
 
 -- ================================================================
--- SECTION 18: TAB BUTTONS
+-- SECTION 19: TAB BUTTONS
 -- ================================================================
 local tabButtons={}
 local activeTab=nil
@@ -702,12 +755,10 @@ end
 switchTab(TabGfx)
 
 -- ================================================================
--- SECTION 19: DRAG
--- [FIX] ลาก MainFrame ไม่ทำให้ cinema slider เลื่อน
---       ใช้ isDraggingMainFrame guard
+-- SECTION 20: DRAG
 -- ================================================================
 local dragToggle,dragStart,startPos,isDragging=false,nil,nil,false
-local isDraggingMainFrame=false  -- [FIX] guard ป้องกัน slider เลื่อนตาม
+local isDraggingMainFrame=false
 
 MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
@@ -719,7 +770,6 @@ MainFrame.InputBegan:Connect(function(input)
         end)
     end
 end)
-
 UserInputService.InputChanged:Connect(function(input)
     if not dragToggle then return end
     if input.UserInputType~=Enum.UserInputType.MouseMovement and input.UserInputType~=Enum.UserInputType.Touch then return end
@@ -735,7 +785,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 -- ================================================================
--- SECTION 20: MINIMIZE
+-- SECTION 21: MINIMIZE
 -- ================================================================
 local isMinimized=false
 MinBtn.MouseButton1Click:Connect(function()
@@ -755,7 +805,7 @@ MinBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================================================================
--- SECTION 21: TOGGLE HELPER
+-- SECTION 22: TOGGLE HELPER
 -- ================================================================
 local function createToggle(parent,text,order,defaultVal,callback)
     local F=Instance.new("Frame",parent)
@@ -792,8 +842,7 @@ local function autoCanvas(scroll,n,h,gap,pad)
 end
 
 -- ================================================================
--- SECTION 22: GRAPHICS TAB
--- [FIX] Sky แยกออกมา ไม่ทับ Graphic
+-- SECTION 23: GRAPHICS TAB
 -- ================================================================
 createToggle(TabGfx,"Depth of Field",1,dofEnabled,function(val)
     dofEnabled=val
@@ -828,8 +877,7 @@ createToggle(TabGfx,"Rain Mode",5,false,function(val)
         pcall(function()
             Lighting.FogStart=20 Lighting.FogEnd=200 Lighting.FogColor=Color3.fromRGB(110,122,142)
         end)
-        applyCinematicBlend()
-        createRainParticles()
+        applyCinematicBlend() createRainParticles()
     else
         clearRainParticles()
         if not horrorFogEnabled and not heavenlyEnabled then resetFogLighting() end
@@ -851,30 +899,31 @@ createToggle(TabGfx,"Heavenly Mode",6,false,function(val)
         ModeText="Status: Normal"
     end
 end)
--- [NEW] Wind toggle อยู่ใน Graphics tab
 createToggle(TabGfx,"Wind Effect",7,false,function(val)
     windEnabled=val
+    if val then ModeText="Status: Windy" BorderColorNow=Color3.fromRGB(160,220,180) startWind()
+    else clearWind() ModeText="Status: Normal" end
+end)
+-- [NEW] Sakura toggle
+createToggle(TabGfx,"🌸 Sakura",8,false,function(val)
+    sakuraEnabled=val
     if val then
-        ModeText="Status: Windy" BorderColorNow=Color3.fromRGB(160,220,180)
-        startWind()
+        ModeText="Status: Sakura" BorderColorNow=Color3.fromRGB(255,160,200)
+        createSakura()
     else
-        clearWind()
-        if not horrorFogEnabled and not rainEnabled and not heavenlyEnabled then
-            ModeText="Status: Normal"
-        end
+        clearSakura() ModeText="Status: Normal"
     end
 end)
 
 local LiveTimeLabel=Instance.new("TextLabel",TabGfx)
-LiveTimeLabel.Size=UDim2.new(1,-16,0,20) LiveTimeLabel.Position=UDim2.new(0,8,0,7*36+10)
+LiveTimeLabel.Size=UDim2.new(1,-16,0,20) LiveTimeLabel.Position=UDim2.new(0,8,0,8*36+10)
 LiveTimeLabel.BackgroundTransparency=1 LiveTimeLabel.Text="Status: Loaded"
 LiveTimeLabel.TextColor3=Color3.fromRGB(180,0,255) LiveTimeLabel.TextSize=11
 LiveTimeLabel.Font=Enum.Font.Code LiveTimeLabel.TextXAlignment=Enum.TextXAlignment.Center
-autoCanvas(TabGfx,7,30,6,32)
+autoCanvas(TabGfx,8,30,6,32)
 
 -- ================================================================
--- SECTION 23: SKYBOX TAB
--- [FIX] Sky แยกออกมาสมบูรณ์ ไม่ทับ Graphic tab
+-- SECTION 24: SKYBOX TAB
 -- ================================================================
 local function applySkyPreset(preset)
     pcall(function()
@@ -882,11 +931,14 @@ local function applySkyPreset(preset)
         sky.SkyboxBk=preset.bk sky.SkyboxDn=preset.dn sky.SkyboxFt=preset.ft
         sky.SkyboxLf=preset.lf sky.SkyboxRt=preset.rt sky.SkyboxUp=preset.up
         sky.StarCount=preset.star
+        if preset.moonSize then sky.MoonAngularSize=preset.moonSize end
         if not heavenlyEnabled then Lighting.ClockTime=preset.time end
+        -- [FIX] ใช้ profile ของ sky ถ้ามี ไม่ทับ graphic
+        if preset.brightness then Lighting.Brightness=preset.brightness end
+        if preset.ambient    then Lighting.OutdoorAmbient=preset.ambient end
     end)
 end
 
--- ปุ่ม Reset Sky กลับค่าเดิม
 local ResetSkyBtn=Instance.new("TextButton",TabSky)
 ResetSkyBtn.Size=UDim2.new(1,-16,0,26) ResetSkyBtn.Position=UDim2.new(0,8,0,6)
 ResetSkyBtn.BackgroundColor3=Color3.fromRGB(60,40,80) ResetSkyBtn.BackgroundTransparency=0.3
@@ -896,10 +948,9 @@ Instance.new("UICorner",ResetSkyBtn).CornerRadius=UDim.new(0,7)
 spring(ResetSkyBtn)
 ResetSkyBtn.MouseButton1Click:Connect(function()
     pcall(function()
-        local sky=Lighting:FindFirstChild("StellarSky") or Instance.new("Sky",Lighting)
-        sky.SkyboxBk="" sky.SkyboxDn="" sky.SkyboxFt=""
-        sky.SkyboxLf="" sky.SkyboxRt="" sky.SkyboxUp=""
-        sky.StarCount=8000
+        local sky=Lighting:FindFirstChildOfClass("Sky")
+        if sky then sky.MoonAngularSize=11 sky.StarCount=8000 end
+        resetFogLighting()
     end)
 end)
 
@@ -941,12 +992,12 @@ end)
 TabSky.CanvasSize=UDim2.new(0,0,0,(skyIdx+3)*34+60)
 
 -- ================================================================
--- SECTION 24: BOOST TAB
+-- SECTION 25: BOOST TAB
 -- ================================================================
 local BoostInfo=Instance.new("TextLabel",TabBoost)
 BoostInfo.Size=UDim2.new(1,-16,0,40) BoostInfo.Position=UDim2.new(0,8,0,8)
 BoostInfo.BackgroundTransparency=1 BoostInfo.TextWrapped=true
-BoostInfo.Text="⚡ ลด material และปิด shadow ชั่วคราวเพื่อเพิ่ม FPS อย่างมาก"
+BoostInfo.Text="⚡ ลด material และปิด shadow ชั่วคราวเพื่อเพิ่ม FPS"
 BoostInfo.TextColor3=Color3.fromRGB(160,160,180) BoostInfo.TextSize=10 BoostInfo.Font=Enum.Font.SourceSans
 
 local BoostButton=Instance.new("TextButton",TabBoost)
@@ -970,7 +1021,7 @@ end)
 autoCanvas(TabBoost,3,30,6,20)
 
 -- ================================================================
--- SECTION 25: THEME TAB
+-- SECTION 26: THEME TAB
 -- ================================================================
 local ThemeTitle=Instance.new("TextLabel",TabTheme)
 ThemeTitle.Size=UDim2.new(1,-16,0,18) ThemeTitle.Position=UDim2.new(0,8,0,4)
@@ -1058,7 +1109,7 @@ end
 autoCanvas(TabTheme,#COLOR_THEMES,27,5,52)
 
 -- ================================================================
--- SECTION 26: FPS CAP TAB
+-- SECTION 27: FPS CAP TAB
 -- ================================================================
 local FPSTitle=Instance.new("TextLabel",TabFPS)
 FPSTitle.Size=UDim2.new(1,-16,0,16) FPSTitle.Position=UDim2.new(0,8,0,4)
@@ -1141,85 +1192,61 @@ Instance.new("UICorner",ShowFPSPopupBtn).CornerRadius=UDim.new(0,7) spring(ShowF
 autoCanvas(TabFPS,6,30,6,30) setFpsCap(60)
 
 -- ================================================================
--- SECTION 27: CINEMATIC TAB
--- [FIX] Slider ใหม่ — ปุ่มสีชาว + แถบไล่สีตามค่า + drag ไม่ชนกับ MainFrame
+-- SECTION 28: CINEMATIC TAB
+-- [FIX] Slider apply ทันที ไม่ read-only + ป้องกัน drag ชน MainFrame
 -- ================================================================
 
--- [FIX] Cinema slider ใหม่ สวยขึ้น มี value label + color gradient
-local function makeFancySlider(parent, yPos, labelText, fillColorA, fillColorB, defRel, changeFn)
-    -- container
-    local container = Instance.new("Frame", parent)
-    container.Size = UDim2.new(1,-14,0,42)
-    container.Position = UDim2.new(0,7,0,yPos)
-    container.BackgroundColor3 = Color3.fromRGB(16,12,26)
-    container.BackgroundTransparency = 0.45
-    container.BorderSizePixel = 0
-    Instance.new("UICorner", container).CornerRadius = UDim.new(0,8)
+-- [FIX] Fancy slider ใหม่ apply ทันทีตอนลาก
+local function makeFancySlider(parent, yPos, labelText, colorA, colorB, defRel, changeFn)
+    local container=Instance.new("Frame",parent)
+    container.Size=UDim2.new(1,-14,0,44)
+    container.Position=UDim2.new(0,7,0,yPos)
+    container.BackgroundColor3=Color3.fromRGB(16,12,26)
+    container.BackgroundTransparency=0.42
+    container.BorderSizePixel=0
+    Instance.new("UICorner",container).CornerRadius=UDim.new(0,8)
 
-    -- label
-    local lbl = Instance.new("TextLabel", container)
-    lbl.Size = UDim2.new(0.7,0,0,16)
-    lbl.Position = UDim2.new(0,8,0,3)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = labelText
-    lbl.TextColor3 = Color3.fromRGB(200,205,225)
-    lbl.TextSize = 10
-    lbl.Font = Enum.Font.SourceSansBold
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    local lbl=Instance.new("TextLabel",container)
+    lbl.Size=UDim2.new(0.72,0,0,17) lbl.Position=UDim2.new(0,8,0,3)
+    lbl.BackgroundTransparency=1 lbl.Text=labelText
+    lbl.TextColor3=Color3.fromRGB(205,210,228) lbl.TextSize=10
+    lbl.Font=Enum.Font.SourceSansBold lbl.TextXAlignment=Enum.TextXAlignment.Left
 
-    -- value label (แสดง % หรือค่า)
-    local valLbl = Instance.new("TextLabel", container)
-    valLbl.Size = UDim2.new(0.3,0,0,16)
-    valLbl.Position = UDim2.new(0.7,0,0,3)
-    valLbl.BackgroundTransparency = 1
-    valLbl.Text = math.floor(defRel*100).."%"
-    valLbl.TextColor3 = fillColorB
-    valLbl.TextSize = 10
-    valLbl.Font = Enum.Font.Code
-    valLbl.TextXAlignment = Enum.TextXAlignment.Right
+    local valLbl=Instance.new("TextLabel",container)
+    valLbl.Size=UDim2.new(0.28,-8,0,17) valLbl.Position=UDim2.new(0.72,0,0,3)
+    valLbl.BackgroundTransparency=1 valLbl.Text=math.floor(defRel*100).."%"
+    valLbl.TextColor3=colorB valLbl.TextSize=10
+    valLbl.Font=Enum.Font.Code valLbl.TextXAlignment=Enum.TextXAlignment.Right
 
-    -- track
-    local track = Instance.new("Frame", container)
-    track.Size = UDim2.new(1,-16,0,7)
-    track.Position = UDim2.new(0,8,0,24)
-    track.BackgroundColor3 = Color3.fromRGB(22,18,36)
-    track.BackgroundTransparency = 0.3
-    track.BorderSizePixel = 0
-    Instance.new("UICorner", track).CornerRadius = UDim.new(0,4)
+    local track=Instance.new("Frame",container)
+    track.Size=UDim2.new(1,-16,0,8) track.Position=UDim2.new(0,8,0,26)
+    track.BackgroundColor3=Color3.fromRGB(22,18,36) track.BackgroundTransparency=0.25 track.BorderSizePixel=0
+    Instance.new("UICorner",track).CornerRadius=UDim.new(0,4)
 
-    -- fill (gradient ไล่สีตามค่า)
-    local fill = Instance.new("Frame", track)
-    fill.Size = UDim2.new(defRel,0,1,0)
-    fill.BackgroundColor3 = fillColorA
-    fill.BorderSizePixel = 0
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(0,4)
-    local fillGrad = Instance.new("UIGradient", fill)
-    fillGrad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, fillColorA),
-        ColorSequenceKeypoint.new(1, fillColorB),
+    local fill=Instance.new("Frame",track)
+    fill.Size=UDim2.new(defRel,0,1,0) fill.BackgroundColor3=colorA fill.BorderSizePixel=0
+    Instance.new("UICorner",fill).CornerRadius=UDim.new(0,4)
+    local fillGrad=Instance.new("UIGradient",fill)
+    fillGrad.Color=ColorSequence.new({
+        ColorSequenceKeypoint.new(0,colorA),
+        ColorSequenceKeypoint.new(1,colorB),
     })
 
-    -- knob (สีชาวกลม)
-    local knob = Instance.new("TextButton", track)
-    knob.Size = UDim2.new(0,16,0,16)
-    knob.Position = UDim2.new(defRel,-8,0.5,-8)
-    knob.BackgroundColor3 = Color3.fromRGB(235,235,245)
-    knob.Text = "" knob.BorderSizePixel = 0 knob.ZIndex = 5
-    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
-    local ks = Instance.new("UIStroke", knob)
-    ks.Color = fillColorB ks.Thickness = 2
+    -- knob สีชาวกลม สวยขึ้น
+    local knob=Instance.new("TextButton",track)
+    knob.Size=UDim2.new(0,16,0,16) knob.Position=UDim2.new(defRel,-8,0.5,-8)
+    knob.BackgroundColor3=Color3.fromRGB(240,240,248) knob.Text="" knob.BorderSizePixel=0 knob.ZIndex=5
+    Instance.new("UICorner",knob).CornerRadius=UDim.new(1,0)
+    local ks=Instance.new("UIStroke",knob) ks.Color=colorB ks.Thickness=2
     spring(knob)
 
-    -- bind drag
-    -- [FIX] เช็ค isDraggingMainFrame ก่อน ถ้า drag window อยู่ ไม่ให้ slider ทำงาน
-    local dragging = false
-    local pendingRel = defRel  -- เก็บค่าไว้ apply ตอนปล่อย
-    local isDragActive = false
+    -- [FIX] apply ทันทีตอนลาก + ป้องกัน drag ชน MainFrame
+    local dragging=false
 
     local function startDrag(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-            if isDraggingMainFrame then return end  -- [FIX] ป้องกัน
-            dragging=true isDragActive=true
+            if isDraggingMainFrame then return end
+            dragging=true
         end
     end
     knob.InputBegan:Connect(startDrag)
@@ -1227,32 +1254,23 @@ local function makeFancySlider(parent, yPos, labelText, fillColorA, fillColorB, 
 
     UserInputService.InputEnded:Connect(function(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-            if dragging and isDragActive then
-                -- [FIX] apply จริงตอนปล่อยมือ (real-only during drag)
-                pcall(function() changeFn(pendingRel) end)
-            end
-            dragging=false isDragActive=false
+            dragging=false
         end
     end)
 
     UserInputService.InputChanged:Connect(function(i)
         if not dragging then return end
-        if isDraggingMainFrame then dragging=false return end  -- [FIX]
+        if isDraggingMainFrame then dragging=false return end
         if i.UserInputType~=Enum.UserInputType.MouseMovement and i.UserInputType~=Enum.UserInputType.Touch then return end
-        local rel = math.clamp((i.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
-        pendingRel = rel
-        -- อัปเดต UI ทันที แต่ apply ค่าจริงตอนปล่อยมือ
-        fill.Size = UDim2.new(rel,0,1,0)
-        knob.Position = UDim2.new(rel,-8,0.5,-8)
-        valLbl.Text = math.floor(rel*100).."%"
-        -- [FIX] อัปเดต gradient สีตาม value ให้ไล่ถึงตำแหน่งนั้น
-        fillGrad.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, fillColorA),
-            ColorSequenceKeypoint.new(1, lerpC(fillColorA,fillColorB,rel)),
-        })
+        local rel=math.clamp((i.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
+        fill.Size=UDim2.new(rel,0,1,0)
+        knob.Position=UDim2.new(rel,-8,0.5,-8)
+        valLbl.Text=math.floor(rel*100).."%"
+        -- [FIX] apply ค่าจริงทันที (ไม่ read-only)
+        pcall(function() changeFn(rel) end)
     end)
 
-    return container, fill, knob, valLbl
+    return container
 end
 
 local CinTitle=Instance.new("TextLabel",TabCinema)
@@ -1261,13 +1279,14 @@ CinTitle.BackgroundTransparency=1 CinTitle.Text="🎬 Cinema — ซ้อนไ
 CinTitle.TextColor3=Color3.fromRGB(180,185,210) CinTitle.TextSize=10
 CinTitle.Font=Enum.Font.SourceSansBold CinTitle.TextXAlignment=Enum.TextXAlignment.Left
 
+-- [FIX] Cinema toggle ไม่ทับ mode อื่น
 createToggle(TabCinema,"Cinematic Mode",1,false,function(val)
     cinematicEnabled=val
     if val then
         ModeText="Status: Cinematic+" BorderColorNow=Color3.fromRGB(120,125,185)
         pcall(function()
             applyCinematicBlend()
-            Lighting.GlobalShadows=true Lighting.ShadowSoftness=0.65
+            Lighting.GlobalShadows=true
             workspace.CurrentCamera.FieldOfView=70
         end)
     else
@@ -1277,13 +1296,8 @@ createToggle(TabCinema,"Cinematic Mode",1,false,function(val)
     end
 end)
 
--- wind strength slider อยู่ใน Cinema tab ด้วย
-makeFancySlider(TabCinema, 54, "💨 Wind Strength",
-    Color3.fromRGB(100,200,160), Color3.fromRGB(180,255,220), 0.5,
-    function(r) windStrength=r end)
-
-local BY = 102
-local sliderDefs = {
+local BY=54
+local sliderDefs={
     {"DOF Intensity",           Color3.fromRGB(100,135,225), Color3.fromRGB(180,210,255), 0.55, function(r) DOF.FarIntensity=r end},
     {"Contrast",                Color3.fromRGB(185,80,255),  Color3.fromRGB(220,170,255), 0.6,  function(r) ColorCorrection.Contrast=lerpN(-1,1,r) end},
     {"Brightness/Exposure",     Color3.fromRGB(255,180,60),  Color3.fromRGB(255,240,160), 0.45, function(r) Lighting.ExposureCompensation=lerpN(-2,1,r) end},
@@ -1296,15 +1310,17 @@ local sliderDefs = {
     {"Field of View (30-120°)", Color3.fromRGB(70,200,160),  Color3.fromRGB(150,255,210), 0.44, function(r) pcall(function() workspace.CurrentCamera.FieldOfView=lerpN(30,120,r) end) end},
     {"Sun Rays",                Color3.fromRGB(255,150,40),  Color3.fromRGB(255,205,140), 0.05, function(r) SunRays.Intensity=r end},
     {"Rain Particles (10-150)", Color3.fromRGB(90,170,255),  Color3.fromRGB(170,220,255), 0.25, function(r) rainParticleCount=math.floor(lerpN(10,150,r)) if rainEnabled then createRainParticles() end end},
+    {"Sakura (10-120)",         Color3.fromRGB(255,140,180), Color3.fromRGB(255,200,220), 0.25, function(r) sakuraCount=math.floor(lerpN(10,120,r)) if sakuraEnabled then createSakura() end end},
+    {"💨 Wind Strength",        Color3.fromRGB(100,200,160), Color3.fromRGB(180,255,220), 0.5,  function(r) windStrength=r end},
 }
 
 for i,def in ipairs(sliderDefs) do
-    makeFancySlider(TabCinema, BY+(i-1)*48, def[1], def[2], def[3], def[4], def[5])
+    makeFancySlider(TabCinema, BY+(i-1)*50, def[1], def[2], def[3], def[4], def[5])
 end
-TabCinema.CanvasSize = UDim2.new(0,0,0, BY + #sliderDefs*48 + 20)
+TabCinema.CanvasSize=UDim2.new(0,0,0, BY + #sliderDefs*50 + 20)
 
 -- ================================================================
--- SECTION 28: FPS POPUP
+-- SECTION 29: FPS POPUP
 -- ================================================================
 local FPSPopup=Instance.new("Frame",ScreenGui)
 FPSPopup.Name="FPSPopup" FPSPopup.Size=UDim2.new(0,105,0,72)
@@ -1388,8 +1404,7 @@ UserInputService.InputChanged:Connect(function(i)
     if pDrag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
         local d=i.Position-pDragStart
         local vp=workspace.CurrentCamera.ViewportSize
-        local pw=FPSPopup.Size.X.Offset local ph=FPSPopup.Size.Y.Offset
-        FPSPopup.Position=UDim2.new(0,math.clamp(pStartPos.X.Offset+d.X,6,vp.X-pw-6),0,math.clamp(pStartPos.Y.Offset+d.Y,6,vp.Y-ph-6))
+        FPSPopup.Position=UDim2.new(0,math.clamp(pStartPos.X.Offset+d.X,6,vp.X-FPSPopup.Size.X.Offset-6),0,math.clamp(pStartPos.Y.Offset+d.Y,6,vp.Y-FPSPopup.Size.Y.Offset-6))
     end
 end)
 
@@ -1429,7 +1444,7 @@ ShowFPSPopupBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================================================================
--- SECTION 29: GRID SIZE + RESIZE
+-- SECTION 30: GRID SIZE + RESIZE
 -- ================================================================
 local camera=workspace.CurrentCamera
 local GRID=64
@@ -1512,7 +1527,7 @@ task.spawn(function()
 end)
 
 -- ================================================================
--- SECTION 30: RENDER LOOP
+-- SECTION 31: RENDER LOOP
 -- ================================================================
 local nextUpdate,frameCount,lastBorderColor=0,0,nil
 
@@ -1540,8 +1555,7 @@ RunService.RenderStepped:Connect(function(dt)
 
         if FPSPopup.Visible then
             PopupFPSBig.Text=tostring(fps)
-            local capStr=targetFpsCap==165 and "165⚡" or tostring(targetFpsCap)
-            PopupCapLabel.Text="cap:"..capStr
+            PopupCapLabel.Text="cap:"..(targetFpsCap==165 and "165⚡" or tostring(targetFpsCap))
             local ratio=fps/math.max(targetFpsCap,1)
             if ratio>=0.9 then
                 PopupStatusLabel.Text="smooth" PopupStatusLabel.TextColor3=Color3.fromRGB(80,255,160)
@@ -1569,9 +1583,251 @@ RunService.RenderStepped:Connect(function(dt)
         frameCount=0 nextUpdate=0
     end
 end)
-
 -- ================================================================
--- SECTION 31: INIT
+-- SECTION 31.5: ADVANCED PROCEDURAL GALAXY ENGINE (NO IMAGE)
+-- ================================================================
+local function runLogoIntro()
+    -- 1. ล็อกและซ่อน UI หลักไว้ก่อนเพื่อความสมบูรณ์แบบของเซอร์ไพรส์
+    MainFrame.Visible = false
+    
+    -- 2. สร้างฉากหลังอวกาศมืดสนิทลึกระยิบระยับ
+    local IntroFrame = Instance.new("Frame", ScreenGui)
+    IntroFrame.Size = UDim2.new(1, 0, 1, 0)
+    IntroFrame.BackgroundColor3 = Color3.fromRGB(4, 3, 7)
+    IntroFrame.BorderSizePixel = 0
+    IntroFrame.ZIndex = 500
+    
+    -- 3. จุดศูนย์กลางจักรวาล (Core Null Node) สำหรับขับเคลื่อนอนิมเชั่นวงโคจร
+    local GalaxyCanvas = Instance.new("Frame", IntroFrame)
+    GalaxyCanvas.Size = UDim2.new(0, 1, 0, 1)
+    GalaxyCanvas.Position = UDim2.new(0.5, 0, 0.45, 0) -- หนุนขึ้นเหนือข้อความเล็กน้อย
+    GalaxyCanvas.BackgroundTransparency = 1
+    
+    -- 4. คอนเทนเนอร์เก็บอ็อบเจกต์และตำแหน่งดาวเพื่อคำนวณการเคลื่อนที่อนันต์
+    local starDataContainer = {}
+    local orbitalRings = {}
+    
+    -- --------------------------------------------------------
+    -- SUB-SYSTEM A: แกนกลางดาราจักรความหนาแน่นสูง (Galactic Core Vortex)
+    -- --------------------------------------------------------
+    local coreDensity = 40
+    for i = 1, coreDensity do
+        local CoreDust = Instance.new("Frame", GalaxyCanvas)
+        CoreDust.AnchorPoint = Vector2.new(0.5, 0.5)
+        CoreDust.BorderSizePixel = 0
+        CoreDust.ZIndex = 502
+        
+        -- ไล่โทนสีแกนสว่างวาบจากขาวไปส้มอ่อนและฟ้าใส
+        if i % 3 == 0 then CoreDust.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        elseif i % 2 == 0 then CoreDust.BackgroundColor3 = Color3.fromRGB(240, 220, 255)
+        else CoreDust.BackgroundColor3 = Color3.fromRGB(200, 240, 255) end
+        
+        -- ใช้การกระจายตัวแบบ Gaussian Distribution สุ่มกลุ่มหมอกดาวชิดแกนกลาง
+        local radius = (math.random()^2) * 28
+        local angle = math.random() * math.pi * 2
+        
+        -- ปรับสัดส่วน XY ให้เอียงเป็นวงรี (ตาม Perspective แบนราบ 3D Simulator)
+        local posX = math.cos(angle) * radius * 1.6
+        local posY = math.sin(angle) * radius * 0.9
+        
+        CoreDust.Position = UDim2.new(0, posX, 0, posY)
+        CoreDust.Size = UDim2.new(0, math.random(2, 4), 0, math.random(2, 4))
+        CoreDust.BackgroundTransparency = 1 -- ซ่อนเริ่มต้นสำหรับอนิเมชั่น Fade-In
+        
+        table.insert(starDataContainer, {Obj = CoreDust, XFactor = 1.6, YFactor = 0.9, Radius = radius, Angle = angle, Speed = 0.05 + (math.random()*0.03)})
+    end
+
+    -- --------------------------------------------------------
+    -- SUB-SYSTEM B: แขนเกลียวคู่มหึมา (Dual Galactic Spiral Arms)
+    -- --------------------------------------------------------
+    local armStarsCount = 180 -- จำนวนดาวหนาแน่นมากเพื่อความสวยงาม
+    for i = 1, armStarsCount do
+        local ArmStar = Instance.new("TextLabel", GalaxyCanvas)
+        ArmStar.BackgroundTransparency = 1
+        ArmStar.Font = Enum.Font.Code
+        ArmStar.ZIndex = 503
+        
+        -- สุ่มอักขระสัญลักษณ์ดวงดาวและขนาดเพื่อมิติระยะชัดลึก (Depth of Field)
+        if i % 5 == 0 then
+            ArmStar.Text = "✦"
+            ArmStar.TextSize = math.random(7, 11)
+            ArmStar.TextColor3 = Color3.fromRGB(160, 220, 255)
+        elseif i % 3 == 0 then
+            ArmStar.Text = "*"
+            ArmStar.TextSize = math.random(9, 14)
+            ArmStar.TextColor3 = Color3.fromRGB(255, 255, 255)
+        else
+            ArmStar.Text = "."
+            ArmStar.TextSize = math.random(12, 22)
+            ArmStar.TextColor3 = Color3.fromRGB(195, 140, 255)
+        end
+        
+        -- สมการเกลียวคณิตศาสตร์ (Archimedean Spiral Formulation)
+        local armOffset = (i % 2 == 0) and 0 or math.pi -- แยกเป็น 2 ขั้วตรงข้ามชัดเจน
+        local progress = (i / armStarsCount)
+        local radius = 25 + (progress * 135) -- ระยะยืดจากศูนย์กลางไปยังปลายแขน
+        local spiralTightness = 3.2 -- ความม้วนแน่นของแขนเกลียว
+        local angle = (progress * spiralTightness) + armOffset
+        
+        -- ปรับค่าโครงสร้างวงรีเฉลียง (Isometric Perspective Matrix Mapping)
+        local posX = math.cos(angle) * radius * 1.8
+        local posY = math.sin(angle) * radius * 0.75
+        
+        ArmStar.Position = UDim2.new(0, posX, 0, posY)
+        ArmStar.TextTransparency = 1
+        
+        table.insert(starDataContainer, {Obj = ArmStar, XFactor = 1.8, YFactor = 0.75, Radius = radius, Angle = angle, Speed = 0.015 + (0.02 * (1 - progress))})
+    end
+
+    -- --------------------------------------------------------
+    -- SUB-SYSTEM C: แถบวงแหวนและดาราวงโคจรนอกภพ (Orbital Ring Systems & Alpha-Gamma Stars)
+    -- --------------------------------------------------------
+    local totalRings = 2
+    for r = 1, totalRings do
+        local RingFrame = Instance.new("Frame", GalaxyCanvas)
+        RingFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+        RingFrame.BackgroundTransparency = 1
+        RingFrame.BorderSizePixel = 1
+        RingFrame.BorderColor3 = (r == 1) and Color3.fromRGB(120, 100, 255) or Color3.fromRGB(70, 150, 255)
+        RingFrame.ZIndex = 501
+        
+        -- กำหนดสัดส่วนวงรีให้กว้างโอบล้อมทางช้างเผือกทั้งหมด
+        local ringSizeX = 300 + (r * 70)
+        local ringSizeY = 125 + (r * 30)
+        RingFrame.Size = UDim2.new(0, ringSizeX, 0, ringSizeY)
+        RingFrame.Position = UDim2.new(0, 0, 0, 0)
+        
+        -- ใช้ UICorner ทำกรอบให้กลายเป็นวงแหวนโค้งเรียบเนียนร้อยเปอร์เซ็นต์
+        local corner = Instance.new("UICorner", RingFrame)
+        corner.CornerRadius = UDim.new(1, 0)
+        
+        table.insert(orbitalRings, RingFrame)
+    end
+    
+    -- เสกดาวผู้นำวิถีขนาดใหญ่ 2 ดวง (Alpha & Gamma Stars ตามโครงสร้างวงนอก)
+    local giantStars = {}
+    for g = 1, 2 do
+        local GiantStar = Instance.new("TextLabel", GalaxyCanvas)
+        GiantStar.BackgroundTransparency = 1
+        GiantStar.Text = "★"
+        GiantStar.TextSize = 26
+        GiantStar.TextColor3 = Color3.fromRGB(255, 255, 255)
+        GiantStar.ZIndex = 505
+        GiantStar.TextTransparency = 1
+        
+        -- ผูกตัวแปรตำแหน่งในระนาบวงรีวงนอกสุด
+        local baseAngle = (g == 1) and 0 or math.pi
+        table.insert(giantStars, {Obj = GiantStar, Angle = baseAngle, RadiusX = 185, RadiusY = 77, Speed = 0.8})
+    end
+
+    -- --------------------------------------------------------
+    -- SUB-SYSTEM D: แบรนดิ้งข้อความเอกลักษณ์ (Premium Typography UI)
+    -- --------------------------------------------------------
+    local BrandLabel = Instance.new("TextLabel", IntroFrame)
+    BrandLabel.Size = UDim2.new(0, 400, 0, 40)
+    BrandLabel.Position = UDim2.new(0.5, -200, 0.82, 0)
+    BrandLabel.BackgroundTransparency = 1
+    BrandLabel.Text = "✦  S T E L L A R H U B  ✦"
+    BrandLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    BrandLabel.Font = Enum.Font.Code
+    BrandLabel.TextSize = 24
+    BrandLabel.TextTransparency = 1
+    BrandLabel.ZIndex = 510
+    
+    local SubBrandLabel = Instance.new("TextLabel", IntroFrame)
+    SubBrandLabel.Size = UDim2.new(0, 400, 0, 20)
+    SubBrandLabel.Position = UDim2.new(0.5, -200, 0.87, 0)
+    SubBrandLabel.BackgroundTransparency = 1
+    SubBrandLabel.Text = "PROCEDURAL SHADER ENGINE v5.3"
+    SubBrandLabel.TextColor3 = Color3.fromRGB(150, 110, 255)
+    SubBrandLabel.Font = Enum.Font.SourceSansBold
+    SubBrandLabel.TextSize = 12
+    SubBrandLabel.TextTransparency = 1
+    SubBrandLabel.ZIndex = 510
+
+    -- --------------------------------------------------------
+    -- STAGE 5: ระบบขับเคลื่อนแอนิเมชัน (Physics Engine & Timeline Sequences)
+    -- --------------------------------------------------------
+    local tweenFast = TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    
+    -- [Phase 5.1: Fade-In กาแล็กซีขึ้นจออย่างตระการตา]
+    TweenService:Create(BrandLabel, tweenFast, {TextTransparency = 0}):Play()
+    task.wait(0.2)
+    TweenService:Create(SubBrandLabel, tweenFast, {TextTransparency = 0}):Play()
+    
+    for _, ring in ipairs(orbitalRings) do
+        TweenService:Create(ring, tweenFast, {BackgroundTransparency = 0.94}):Play() -- แอบมีหมอกวงแหวนจางๆ
+    end
+    for _, star in ipairs(starDataContainer) do
+        local transparencyProp = star.Obj:IsA("Frame") and "BackgroundTransparency" or "TextTransparency"
+        TweenService:Create(star.Obj, tweenFast, {[transparencyProp] = 0}):Play()
+    end
+    for _, gStar in ipairs(giantStars) do
+        TweenService:Create(gStar.Obj, tweenFast, {TextTransparency = 0}):Play()
+    end
+
+    -- [Phase 5.2: Live Simulation Loop - ขับเคลื่อนคลื่นฟิสิกส์ให้ดวงดาวเคลื่อนที่แบบเรียลไทม์]
+    local runDuration = 2.8 -- ระยะเวลาหมุนโชว์ความอลังการ (วินาที)
+    local startClock = os.clock()
+    
+    while os.clock() - startClock < runDuration do
+        local dt = os.clock() - startClock
+        
+        -- 1. หมุนโครงสร้างหลักของทั้งแกนจักรวาล
+        GalaxyCanvas.Rotation = dt * 25
+        
+        -- 2. ขยับเศษฝุ่นละอองและดวงดาวตามสมการความเร็วรอบใจกลางที่ไม่เท่ากัน (Differential Rotation)
+        for _, star in ipairs(starDataContainer) do
+            star.Angle = star.Angle + star.Speed * 0.05
+            local nextX = math.cos(star.Angle) * star.Radius * star.XFactor
+            local nextY = math.sin(star.Angle) * star.Radius * star.YFactor
+            star.Obj.Position = UDim2.new(0, nextX, 0, nextY)
+        end
+        
+        -- 3. อัปเดตพิกัดดาวบริวารยักษ์สีขาว 2 ดวงให้วิ่งตามขอบวงแหวนนอกสุดอย่างเที่ยงตรง
+        for _, gStar in ipairs(giantStars) do
+            gStar.Angle = gStar.Angle + (0.04 * gStar.Speed)
+            local gx = math.cos(gStar.Angle) * gStar.RadiusX
+            local gy = math.sin(gStar.Angle) * gStar.RadiusY
+            -- ลบครึ่งหนึ่งของขนาดฟอนต์เพื่อให้ดาวอยู่กึ่งกลางเส้นวงโคจรพอดี
+            gStar.Obj.Position = UDim2.new(0, gx - 13, 0, gy - 13) 
+        end
+        
+        task.wait()
+    end
+
+    -- [Phase 5.3: Cosmic Collapse - Fade-Out ยุบตัวทุกอย่างหายไปเพื่อเปิดสคริปต์]
+    local tweenFadeOut = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+    
+    TweenService:Create(BrandLabel, tweenFadeOut, {TextTransparency = 1}):Play()
+    TweenService:Create(SubBrandLabel, tweenFadeOut, {TextTransparency = 1}):Play()
+    TweenService:Create(IntroFrame, tweenFadeOut, {BackgroundTransparency = 1}):Play()
+    
+    for _, ring in ipairs(orbitalRings) do
+        TweenService:Create(ring, tweenFadeOut, {BackgroundTransparency = 1, BorderTransparency = 1}):Play()
+    end
+    for _, star in ipairs(starDataContainer) do
+        local transparencyProp = star.Obj:IsA("Frame") and "BackgroundTransparency" or "TextTransparency"
+        TweenService:Create(star.Obj, tweenFadeOut, {[transparencyProp] = 1}):Play()
+    end
+    for _, gStar in ipairs(giantStars) do
+        TweenService:Create(gStar.Obj, tweenFadeOut, {TextTransparency = 1}):Play()
+    end
+    
+    task.wait(0.6)
+    IntroFrame:Destroy() -- เคลียร์หน่วยความจำของ Engine ทิ้งทั้งหมดร้อยเปอร์เซ็นต์
+    
+    -- 6. รันคำสั่งเปิดตัวหน้าต่าง UI หลักด้วยเอฟเฟกต์กางปีกนุ่มนวล (Cinematic Elastic Pop)
+    MainFrame.Visible = true
+    local finalSize = MainFrame.Size
+    MainFrame.Size = UDim2.new(0, finalSize.X.Offset - 50, 0, finalSize.Y.Offset - 50) -- ย่อขนาดก่อนดีดตัว
+    
+    TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = finalSize
+    }):Play()
+end
+-- ================================================================
+-- SECTION 32: INIT
 -- ================================================================
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
-print("✅ MYTHICAL SHADER v5.2 — Wind / FancySlider / CinemaFix / SkyFix!")
+print("✅ MYTHICAL SHADER v5.3 — Sakura / Full Moon / Cinema Fix / Instant Slider!")
