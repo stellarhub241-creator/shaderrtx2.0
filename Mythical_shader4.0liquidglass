@@ -1586,6 +1586,10 @@ end)
 -- ================================================================
 -- SECTION 31.5: ADVANCED PROCEDURAL GALAXY ENGINE (OPTIMIZED)
 -- ================================================================
+-- ดึง Service สำคัญมาเตรียมไว้ป้องกันสคริปต์แครชกลางคัน
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
 local function runLogoIntro()
     -- 1. ล็อกและซ่อน UI หลักไว้ก่อนเพื่อความสมบูรณ์แบบของเซอร์ไพรส์
     MainFrame.Visible = false
@@ -1637,7 +1641,8 @@ local function runLogoIntro()
     -- --------------------------------------------------------
     -- SUB-SYSTEM B: แขนเกลียวคู่มหึมา (Dual Galactic Spiral Arms)
     -- --------------------------------------------------------
-    local armStarsCount = 180 
+    -- 🌟 ปรับจำนวนดวงดาวเพิ่มเป็น 640 ดวงตามคำขอ เพื่อความสวยงามอลังการ
+    local armStarsCount = 640 
     for i = 1, armStarsCount do
         local ArmStar = Instance.new("TextLabel", GalaxyCanvas)
         ArmStar.BackgroundTransparency = 1
@@ -1756,7 +1761,7 @@ local function runLogoIntro()
         TweenService:Create(gStar.Obj, tweenFast, {TextTransparency = 0}):Play()
     end
 
-    -- 🌟 [🔥 แก้ไขตรงนี้] Phase 5.2: เปลี่ยนมาใช้ Heartbeat ป้องกัน Loop ค้างและเฟรมกระตุก
+    -- Phase 5.2: เปลี่ยนมาใช้ Heartbeat ป้องกัน Loop ค้างและเฟรมกระตุก
     local runDuration = 2.8 
     local startClock = os.clock()
     
@@ -1815,7 +1820,9 @@ local function runLogoIntro()
     -- 6. รันคำสั่งเปิดตัวหน้าต่าง UI หลักด้วยเอฟเฟกต์กางปีกนุ่มนวล (Cinematic Elastic Pop)
     MainFrame.Visible = true
     local finalSize = MainFrame.Size
-    MainFrame.Size = UDim2.new(0, finalSize.X.Offset - 50, 0, finalSize.Y.Offset - 50) 
+    
+    -- 🌟 [🔥 แก้ไขบั๊กตรงนี้] ปรับการคำนวณ UDim2 ใหม่ให้รักษา Scale เดิมไว้ ไม่ให้ขนาด UI กลายเป็น 0
+    MainFrame.Size = UDim2.new(finalSize.X.Scale, finalSize.X.Offset - 50, finalSize.Y.Scale, finalSize.Y.Offset - 50) 
     
     TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
         Size = finalSize
@@ -1827,7 +1834,7 @@ end
 -- ================================================================
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
 
--- 🌟 [🔥 แก้ไขตรงนี้] รัน Intro แบบ Async ผ่าน task.spawn เพื่อให้ UI หลักโหลดทันทีโดยไม่ติดขัด
+-- รัน Intro แบบ Async ผ่าน task.spawn เพื่อให้ UI หลักโหลดทันทีโดยไม่ติดขัด
 task.spawn(function()
     runLogoIntro()
 end)
