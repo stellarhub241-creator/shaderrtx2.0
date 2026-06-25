@@ -1,5 +1,5 @@
 -- ================================================================
--- [[ STELLARHUB: MYTHICAL SHADER v5.1 ]]
+-- [[ STELLARHUB: MYTHICAL SHADER v5.2 ]]
 -- ================================================================
 -- SECTION 1: SERVICES
 -- ================================================================
@@ -35,6 +35,7 @@ local horrorFogEnabled   = false
 local rainEnabled        = false
 local heavenlyEnabled    = false
 local cinematicEnabled   = false
+local windEnabled        = false
 local currentThemeIndex  = 1
 local targetFpsCap       = 60
 local rainParticleCount  = 40
@@ -47,7 +48,6 @@ local originalBrightness = Lighting.Brightness
 local originalExposure   = Lighting.ExposureCompensation
 local originalShadow     = Lighting.ShadowSoftness
 local originalOutdoor    = Lighting.OutdoorAmbient
-local originalClockTime  = Lighting.ClockTime
 
 -- ================================================================
 -- SECTION 3: THEMES
@@ -85,13 +85,9 @@ for _, v in pairs(Lighting:GetChildren()) do
 end
 
 local Sky = Instance.new("Sky", Lighting)
-Sky.Name = "StellarSky"
-Sky.SunTextureId    = "rbxassetid://1079349813"
-Sky.SunAngularSize  = 21
-Sky.MoonTextureId   = "rbxassetid://6444320592"
-Sky.MoonAngularSize = 11
-Sky.StarCount           = 8000
-Sky.CelestialBodiesShown = true
+Sky.Name="StellarSky" Sky.SunTextureId="rbxassetid://1079349813" Sky.SunAngularSize=21
+Sky.MoonTextureId="rbxassetid://6444320592" Sky.MoonAngularSize=11
+Sky.StarCount=8000 Sky.CelestialBodiesShown=true
 
 local Atmosphere      = Instance.new("Atmosphere", Lighting)
 local ColorCorrection = Instance.new("ColorCorrectionEffect", Lighting)
@@ -149,14 +145,21 @@ local function applyLighting(p)
     end)
 end
 
--- Cinema blend: ซ้อน cinematic effect ทับ profile ที่กำลังใช้งาน
+-- [FIX] Cinema blend: ซ้อนทับ profile ปัจจุบันโดยไม่ reset
+local cinContrast    = 0.6
+local cinSaturation  = -0.1
+local cinDofFar      = 0.55
+local cinBloomThresh = 0.98
+local cinShadow      = 0.65
+
 local function applyCinematicBlend()
     if not cinematicEnabled then return end
     pcall(function()
-        ColorCorrection.Contrast   = math.max(ColorCorrection.Contrast, 0.4)
-        ColorCorrection.Saturation = ColorCorrection.Saturation - 0.15
-        DOF.FarIntensity           = math.max(DOF.FarIntensity, 0.4)
-        Bloom.Threshold            = math.min(Bloom.Threshold + 0.1, 0.99)
+        ColorCorrection.Contrast   = math.max(ColorCorrection.Contrast,   cinContrast)
+        ColorCorrection.Saturation = ColorCorrection.Saturation + cinSaturation
+        DOF.FarIntensity           = math.max(DOF.FarIntensity,            cinDofFar)
+        Bloom.Threshold            = math.min(Bloom.Threshold + 0.08,      0.99)
+        Lighting.ShadowSoftness    = math.max(Lighting.ShadowSoftness,     cinShadow)
     end)
 end
 
@@ -169,9 +172,32 @@ local function resetFogLighting()
     end)
 end
 
+local function reapplyActiveMode()
+    if horrorFogEnabled then
+        applyLighting(PROFILES.HORROR)
+        pcall(function()
+            Lighting.FogStart=8 Lighting.FogEnd=120
+            Lighting.FogColor=Color3.fromRGB(18,28,12) Lighting.Ambient=Color3.fromRGB(10,16,6)
+        end)
+    elseif rainEnabled then
+        applyLighting(PROFILES.RAIN)
+        pcall(function()
+            Lighting.FogStart=20 Lighting.FogEnd=200 Lighting.FogColor=Color3.fromRGB(110,122,142)
+        end)
+    elseif heavenlyEnabled then
+        applyLighting(PROFILES.HEAVENLY)
+        pcall(function()
+            Lighting.FogStart=300 Lighting.FogEnd=1200
+            Lighting.FogColor=Color3.fromRGB(220,230,255) Lighting.ClockTime=12
+        end)
+    else
+        resetFogLighting()
+    end
+    applyCinematicBlend()
+end
+
 -- ================================================================
 -- SECTION 8: RAIN SYSTEM
--- [FIX] Glass + higher reflectance + ขนาดใหญ่ขึ้น + shimmer color
 -- ================================================================
 local rainFolder      = nil
 local rainConnections = {}
@@ -196,70 +222,52 @@ local function createRainParticles()
         local p = Instance.new("Part")
         p.Size        = Vector3.new(0.045, math.random(18,30)*0.1, 0.045)
         p.Material    = Enum.Material.Glass
-        p.Reflectance = math.random(70,90)/100   -- [FIX] สะท้อนสูงมาก
+        p.Reflectance = math.random(70,90)/100
         p.Color       = Color3.fromRGB(math.random(200,230), math.random(225,245), 255)
-        p.Transparency= math.random(55,72)/100   -- [FIX] ใสขึ้น เห็น reflection ชัด
-        p.CastShadow  = false
-        p.Anchored    = true
-        p.CanCollide  = false
-        p.Parent      = rainFolder
+        p.Transparency= math.random(55,72)/100
+        p.CastShadow=false p.Anchored=true p.CanCollide=false p.Parent=rainFolder
         table.insert(rainParts, p)
     end
 
     local rippleCount = math.max(6, math.floor(count*0.18))
     for i = 1, rippleCount do
         local r = Instance.new("Part")
-        r.Size        = Vector3.new(0.1,0.05,0.1)
-        r.Material    = Enum.Material.Glass
-        r.Reflectance = 0.7
-        r.Color       = Color3.fromRGB(180,215,255)
-        r.Transparency= 0.82
-        r.CastShadow  = false
-        r.Anchored    = true
-        r.CanCollide  = false
-        r.Shape       = Enum.PartType.Cylinder
-        r.Parent      = rainFolder
+        r.Size=Vector3.new(0.1,0.05,0.1) r.Material=Enum.Material.Glass r.Reflectance=0.7
+        r.Color=Color3.fromRGB(180,215,255) r.Transparency=0.82
+        r.CastShadow=false r.Anchored=true r.CanCollide=false
+        r.Shape=Enum.PartType.Cylinder r.Parent=rainFolder
         table.insert(rainRipples, r)
     end
 
     local frame = 0
     local conn = RunService.Heartbeat:Connect(function()
-        frame = frame + 1
-        if frame % 2 ~= 0 then return end
+        frame=frame+1
+        if frame%2~=0 then return end
         if not rainFolder or not rainFolder.Parent then return end
-        local cp = cam.CFrame.Position
-        local t  = tick()
-        for i, p in ipairs(rainParts) do
+        local cp=cam.CFrame.Position
+        local t=tick()
+        for i,p in ipairs(rainParts) do
             if p and p.Parent then
-                local ph   = i*0.73
-                local fall = (t*16 + ph*2.8) % 32
-                -- [FIX] shimmer reflectance ตามเวลา
-                p.Reflectance = 0.65 + math.sin(t*3+ph)*0.25
-                p.CFrame = CFrame.new(
-                    cp.X+math.sin(ph)*34,
-                    cp.Y+20-fall,
-                    cp.Z+math.cos(ph)*34
-                ) * CFrame.Angles(0.18,0,0.06)
+                local ph=i*0.73
+                local fall=(t*16+ph*2.8)%32
+                p.Reflectance=0.65+math.sin(t*3+ph)*0.25
+                p.CFrame=CFrame.new(cp.X+math.sin(ph)*34,cp.Y+20-fall,cp.Z+math.cos(ph)*34)*CFrame.Angles(0.18,0,0.06)
             end
         end
-        for i, r in ipairs(rainRipples) do
+        for i,r in ipairs(rainRipples) do
             if r and r.Parent then
-                local rt = (t*0.7 + i*0.65) % 1
-                local sc = 0.3 + rt*3.5
-                local ph = i*1.13
-                local rx = cp.X + math.sin(ph)*22
-                local rz = cp.Z + math.cos(ph)*22
-                local ray = workspace:Raycast(Vector3.new(rx,cp.Y+8,rz), Vector3.new(0,-50,0))
-                local ry  = ray and ray.Position.Y+0.05 or cp.Y-8
-                r.CFrame       = CFrame.new(rx,ry,rz) * CFrame.Angles(0,0,math.pi/2)
-                r.Size         = Vector3.new(0.05,sc,sc)
-                r.Transparency = 0.65+(1-rt)*0.28
-                r.Reflectance  = 0.6 + math.sin(t*2+i)*0.3
-                r.Color        = Color3.fromRGB(
-                    math.floor(lerpN(150,210,1-rt)),
-                    math.floor(lerpN(190,235,1-rt)),
-                    255
-                )
+                local rt=(t*0.7+i*0.65)%1
+                local sc=0.3+rt*3.5
+                local ph=i*1.13
+                local rx=cp.X+math.sin(ph)*22
+                local rz=cp.Z+math.cos(ph)*22
+                local ray=workspace:Raycast(Vector3.new(rx,cp.Y+8,rz),Vector3.new(0,-50,0))
+                local ry=ray and ray.Position.Y+0.05 or cp.Y-8
+                r.CFrame=CFrame.new(rx,ry,rz)*CFrame.Angles(0,0,math.pi/2)
+                r.Size=Vector3.new(0.05,sc,sc)
+                r.Transparency=0.65+(1-rt)*0.28
+                r.Reflectance=0.6+math.sin(t*2+i)*0.3
+                r.Color=Color3.fromRGB(math.floor(lerpN(150,210,1-rt)),math.floor(lerpN(190,235,1-rt)),255)
             end
         end
     end)
@@ -267,7 +275,69 @@ local function createRainParticles()
 end
 
 -- ================================================================
--- SECTION 9: TIME LOOP
+-- SECTION 9: WIND SYSTEM
+-- ================================================================
+local windConnections = {}
+local windStrength    = 0.5  -- 0-1
+local windParts       = {}
+
+local function clearWind()
+    for _,c in pairs(windConnections) do pcall(function() c:Disconnect() end) end
+    windConnections = {}
+    -- คืน CFrame เดิม
+    for _,d in pairs(windParts) do
+        pcall(function()
+            if d.part and d.part.Parent then
+                d.part.CFrame = d.origin
+            end
+        end)
+    end
+    windParts = {}
+end
+
+local function startWind()
+    clearWind()
+    -- scan หา Part ที่น่าจะเป็นต้นไม้/หญ้า (ขนาดเล็ก, ไม่ใช่ Anchored ที่ใหญ่)
+    local cam = workspace.CurrentCamera
+    for _,v in pairs(workspace:GetDescendants()) do
+        pcall(function()
+            if (v:IsA("BasePart") or v:IsA("MeshPart")) and v.Anchored then
+                local sz = v.Size
+                local isSmall = sz.X<4 and sz.Z<4 and sz.Y<12
+                local dist = (v.Position-cam.CFrame.Position).Magnitude
+                if isSmall and dist<150 and v.Name~="StellarRain" then
+                    table.insert(windParts,{
+                        part   = v,
+                        origin = v.CFrame,
+                        phase  = math.random()*math.pi*2,
+                        freq   = 0.8+math.random()*0.8,
+                        amp    = 0.012+math.random()*0.018,
+                    })
+                end
+            end
+        end)
+    end
+
+    local conn = RunService.Heartbeat:Connect(function()
+        if not windEnabled then return end
+        local t   = tick()
+        local str = windStrength
+        for _,d in pairs(windParts) do
+            pcall(function()
+                if d.part and d.part.Parent then
+                    local wave  = math.sin(t*d.freq+d.phase)*d.amp*str
+                    local wave2 = math.cos(t*d.freq*0.7+d.phase)*d.amp*str*0.5
+                    d.part.CFrame = d.origin
+                        * CFrame.Angles(wave, wave2*0.3, wave*0.5)
+                end
+            end)
+        end
+    end)
+    table.insert(windConnections, conn)
+end
+
+-- ================================================================
+-- SECTION 10: TIME LOOP
 -- ================================================================
 local ModeText       = "Status: Loading..."
 local BorderColorNow = Color3.fromRGB(180,0,255)
@@ -275,7 +345,6 @@ local rainbowHue     = 0
 
 task.spawn(function()
     while task.wait(0.25) do
-        -- [FIX] time loop ทำงานได้เสมอ Cinema ไม่ block
         if not horrorFogEnabled and not rainEnabled and not heavenlyEnabled then
             local t = Lighting.ClockTime
             local p
@@ -286,21 +355,21 @@ task.spawn(function()
             else                       p=PROFILES.NIGHT                                         ModeText="Status: Night"       BorderColorNow=Color3.fromRGB(100,180,255) end
             if not isFpsBoostOn then
                 applyLighting(p)
-                applyCinematicBlend()  -- [FIX] Cinema blend ซ้อนทับ time profile
+                applyCinematicBlend()
             end
         end
     end
 end)
 
 -- ================================================================
--- SECTION 10: PBR
+-- SECTION 11: PBR
 -- ================================================================
 local function applyPBROnPart(v)
     if not pbrEnabled or isFpsBoostOn then return end
     if not v or not v.Parent then return end
     if not (v:IsA("BasePart") or v:IsA("MeshPart")) then return end
     v.CastShadow = true
-    local m = v.Material local r = 0
+    local m=v.Material local r=0
     if m==Enum.Material.Concrete        then r=0.15
     elseif m==Enum.Material.SmoothPlastic then r=0.35
     elseif m==Enum.Material.Cobblestone   then r=0.08
@@ -315,7 +384,7 @@ local function applyPBROnPart(v)
     if antiBlueGloss then
         local c=v.Color
         local lum=(c.R*0.299)+(c.G*0.587)+(c.B*0.114)
-        v.Reflectance = lum<0.18 and r*(lum*3.5) or r
+        v.Reflectance=lum<0.18 and r*(lum*3.5) or r
     else v.Reflectance=r end
 end
 
@@ -325,9 +394,7 @@ local function runPBRScan()
     for _,v in pairs(workspace:GetDescendants()) do
         pcall(function()
             if v:IsA("BasePart") or v:IsA("MeshPart") then
-                if (v.Position-cam.CFrame.Position).Magnitude < 200 then
-                    applyPBROnPart(v)
-                end
+                if (v.Position-cam.CFrame.Position).Magnitude<200 then applyPBROnPart(v) end
             end
         end)
         n=n+1 if n%300==0 then task.wait() end
@@ -335,14 +402,14 @@ local function runPBRScan()
 end
 task.spawn(runPBRScan)
 workspace.DescendantAdded:Connect(function(v)
-    task.delay(0.2, function() pcall(function() applyPBROnPart(v) end) end)
+    task.delay(0.2,function() pcall(function() applyPBROnPart(v) end) end)
 end)
 
 -- ================================================================
--- SECTION 11: FPS BOOST
+-- SECTION 12: FPS BOOST
 -- ================================================================
 local function triggerFPSBoost(on)
-    isFpsBoostOn = on
+    isFpsBoostOn=on
     if on then
         local n=0
         for _,v in pairs(workspace:GetDescendants()) do
@@ -375,17 +442,15 @@ local function triggerFPSBoost(on)
 end
 
 -- ================================================================
--- SECTION 12: UI FRAMEWORK
+-- SECTION 13: UI FRAMEWORK
 -- ================================================================
-local ScreenGui = Instance.new("ScreenGui", CoreGui)
-ScreenGui.Name           = "STELLARHUB_MYTHICAL"
-ScreenGui.ResetOnSpawn   = false
-ScreenGui.IgnoreGuiInset = true
+local ScreenGui=Instance.new("ScreenGui",CoreGui)
+ScreenGui.Name="STELLARHUB_MYTHICAL" ScreenGui.ResetOnSpawn=false ScreenGui.IgnoreGuiInset=true
 
 local function spring(btn)
     pcall(function()
-        local us = btn:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",btn)
-        us.Scale = 1.0
+        local us=btn:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",btn)
+        us.Scale=1.0
         btn.MouseEnter:Connect(function() pcall(function()
             TweenService:Create(us,TweenInfo.new(0.22,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Scale=1.07}):Play()
             TweenService:Create(btn,TweenInfo.new(0.18,Enum.EasingStyle.Quad),{BackgroundTransparency=0.12}):Play()
@@ -408,19 +473,19 @@ local function spring(btn)
 end
 
 local function addHoldSquish(frame)
-    local holdThread = nil
+    local holdThread=nil
     frame.InputBegan:Connect(function(input)
         if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
             if holdThread then pcall(function() task.cancel(holdThread) end) end
-            holdThread = task.delay(0.35, function()
+            holdThread=task.delay(0.35,function()
                 pcall(function()
-                    local us = frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",frame)
-                    us.Scale = 1
+                    local us=frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",frame)
+                    us.Scale=1
                     TweenService:Create(us,TweenInfo.new(0.14,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{Scale=0.94}):Play()
                     task.wait(0.14)
                     TweenService:Create(us,TweenInfo.new(0.28,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Scale=1.0}):Play()
                 end)
-                holdThread = nil
+                holdThread=nil
             end)
             input.Changed:Connect(function()
                 if input.UserInputState==Enum.UserInputState.End then
@@ -432,21 +497,19 @@ local function addHoldSquish(frame)
 end
 
 -- ================================================================
--- SECTION 13: MAIN FRAME
+-- SECTION 14: MAIN FRAME
 -- ================================================================
-local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size                   = UDim2.new(0,330,0,270)
-MainFrame.Position               = UDim2.new(0.5,-165,0.4,-135)
-MainFrame.BackgroundColor3       = Color3.fromRGB(10,8,16)
-MainFrame.BackgroundTransparency = 0.32
-MainFrame.BorderSizePixel        = 0
-MainFrame.Active                 = true
-MainFrame.ClipsDescendants       = true
-Instance.new("UICorner",MainFrame).CornerRadius = UDim.new(0,16)
+local MainFrame=Instance.new("Frame",ScreenGui)
+MainFrame.Size=UDim2.new(0,330,0,270)
+MainFrame.Position=UDim2.new(0.5,-165,0.4,-135)
+MainFrame.BackgroundColor3=Color3.fromRGB(10,8,16)
+MainFrame.BackgroundTransparency=0.32
+MainFrame.BorderSizePixel=0 MainFrame.Active=true MainFrame.ClipsDescendants=true
+Instance.new("UICorner",MainFrame).CornerRadius=UDim.new(0,16)
 
--- shimmer
-local GlassShimmer = Instance.new("Frame",MainFrame)
-GlassShimmer.Size=UDim2.new(1.5,0,0,2) GlassShimmer.Position=UDim2.new(-0.25,0,0,1) GlassShimmer.BorderSizePixel=0 GlassShimmer.ZIndex=3
+local GlassShimmer=Instance.new("Frame",MainFrame)
+GlassShimmer.Size=UDim2.new(1.5,0,0,2) GlassShimmer.Position=UDim2.new(-0.25,0,0,1)
+GlassShimmer.BorderSizePixel=0 GlassShimmer.ZIndex=3
 local ShimGrad=Instance.new("UIGradient",GlassShimmer)
 ShimGrad.Color=ColorSequence.new({
     ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),
@@ -460,10 +523,9 @@ task.spawn(function()
     end
 end)
 
--- border stroke
-local UIStroke = Instance.new("UIStroke",MainFrame)
+local UIStroke=Instance.new("UIStroke",MainFrame)
 UIStroke.Thickness=1.8 UIStroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
-local UIGradientStroke = Instance.new("UIGradient",UIStroke)
+local UIGradientStroke=Instance.new("UIGradient",UIStroke)
 UIGradientStroke.Color=ColorSequence.new({
     ColorSequenceKeypoint.new(0,Color3.fromRGB(255,182,217)),
     ColorSequenceKeypoint.new(0.33,Color3.fromRGB(180,0,255)),
@@ -471,11 +533,11 @@ UIGradientStroke.Color=ColorSequence.new({
     ColorSequenceKeypoint.new(1,Color3.fromRGB(255,182,217)),
 })
 
--- [FIX] Liquid Glass refraction — ใสจริงๆ ไม่ขาว
-local GlassRefraction = Instance.new("Frame",MainFrame)
+-- Liquid Glass layers
+local GlassRefraction=Instance.new("Frame",MainFrame)
 GlassRefraction.Size=UDim2.new(1,0,0.5,0) GlassRefraction.Position=UDim2.new(0,0,0,0)
 GlassRefraction.BackgroundColor3=Color3.fromRGB(200,235,255)
-GlassRefraction.BackgroundTransparency=0.97   -- [FIX] แทบใสหมด
+GlassRefraction.BackgroundTransparency=0.97
 GlassRefraction.BorderSizePixel=0 GlassRefraction.ZIndex=0 GlassRefraction.Visible=false
 Instance.new("UICorner",GlassRefraction).CornerRadius=UDim.new(0,16)
 local RefrGrad=Instance.new("UIGradient",GlassRefraction)
@@ -486,8 +548,7 @@ RefrGrad.Color=ColorSequence.new({
 })
 RefrGrad.Rotation=135
 
--- [FIX] Glass inner highlight ขอบบนใสๆ เหมือน frosted glass จริง
-local GlassHighlight = Instance.new("Frame",MainFrame)
+local GlassHighlight=Instance.new("Frame",MainFrame)
 GlassHighlight.Size=UDim2.new(0.9,0,0,1) GlassHighlight.Position=UDim2.new(0.05,0,0,2)
 GlassHighlight.BackgroundColor3=Color3.fromRGB(255,255,255)
 GlassHighlight.BackgroundTransparency=0.85
@@ -497,39 +558,37 @@ Instance.new("UICorner",GlassHighlight).CornerRadius=UDim.new(1,0)
 addHoldSquish(MainFrame)
 
 -- ================================================================
--- SECTION 14: TITLE BAR
+-- SECTION 15: TITLE BAR
 -- ================================================================
-local TitleBar = Instance.new("Frame",MainFrame)
+local TitleBar=Instance.new("Frame",MainFrame)
 TitleBar.Size=UDim2.new(1,0,0,36) TitleBar.BackgroundTransparency=1 TitleBar.ZIndex=5
 
-local TitleLabel = Instance.new("TextLabel",TitleBar)
+local TitleLabel=Instance.new("TextLabel",TitleBar)
 TitleLabel.Size=UDim2.new(0.6,0,1,0) TitleLabel.Position=UDim2.new(0,12,0,0)
-TitleLabel.BackgroundTransparency=1 TitleLabel.Text="✦ MYTHICAL SHADER v5.1"
+TitleLabel.BackgroundTransparency=1 TitleLabel.Text="✦ MYTHICAL SHADER v5.2"
 TitleLabel.TextColor3=Color3.fromRGB(255,255,255) TitleLabel.TextSize=11
 TitleLabel.Font=Enum.Font.Code TitleLabel.TextXAlignment=Enum.TextXAlignment.Left TitleLabel.ZIndex=6
 
-local MinBtn = Instance.new("TextButton",TitleBar)
+local MinBtn=Instance.new("TextButton",TitleBar)
 MinBtn.Size=UDim2.new(0,26,0,26) MinBtn.Position=UDim2.new(1,-32,0.5,-13)
 MinBtn.BackgroundColor3=Color3.fromRGB(28,22,42) MinBtn.BackgroundTransparency=0.2
-MinBtn.Text="-" MinBtn.TextColor3=Color3.fromRGB(0,220,255) MinBtn.Font=Enum.Font.Code MinBtn.TextSize=15
-MinBtn.ZIndex=6
+MinBtn.Text="-" MinBtn.TextColor3=Color3.fromRGB(0,220,255) MinBtn.Font=Enum.Font.Code MinBtn.TextSize=15 MinBtn.ZIndex=6
 Instance.new("UICorner",MinBtn).CornerRadius=UDim.new(0,7)
 Instance.new("UIStroke",MinBtn).Color=Color3.fromRGB(60,50,90)
 spring(MinBtn)
 
-local SizeBtn = Instance.new("TextButton",TitleBar)
+local SizeBtn=Instance.new("TextButton",TitleBar)
 SizeBtn.Size=UDim2.new(0,46,0,21) SizeBtn.Position=UDim2.new(1,-86,0.5,-10)
 SizeBtn.BackgroundColor3=Color3.fromRGB(18,14,28) SizeBtn.BackgroundTransparency=0.2
-SizeBtn.TextColor3=Color3.fromRGB(0,220,255) SizeBtn.Font=Enum.Font.Code SizeBtn.TextSize=10
-SizeBtn.ZIndex=6
+SizeBtn.TextColor3=Color3.fromRGB(0,220,255) SizeBtn.Font=Enum.Font.Code SizeBtn.TextSize=10 SizeBtn.ZIndex=6
 Instance.new("UICorner",SizeBtn).CornerRadius=UDim.new(0,6)
 Instance.new("UIStroke",SizeBtn).Color=Color3.fromRGB(80,60,110)
 spring(SizeBtn)
 
 -- ================================================================
--- SECTION 15: SIDEBAR
+-- SECTION 16: SIDEBAR
 -- ================================================================
-local Sidebar = Instance.new("ScrollingFrame",MainFrame)
+local Sidebar=Instance.new("ScrollingFrame",MainFrame)
 Sidebar.Size=UDim2.new(0,90,1,-36) Sidebar.Position=UDim2.new(0,0,0,36)
 Sidebar.BackgroundColor3=Color3.fromRGB(8,6,14) Sidebar.BackgroundTransparency=0.5
 Sidebar.BorderSizePixel=0 Sidebar.ScrollBarThickness=2
@@ -537,17 +596,16 @@ Sidebar.ScrollBarImageColor3=Color3.fromRGB(120,0,200)
 Sidebar.ScrollingDirection=Enum.ScrollingDirection.Y
 Sidebar.ElasticBehavior=Enum.ElasticBehavior.Always
 
--- sidebar separator line
-local SidebarLine = Instance.new("Frame",MainFrame)
+local SidebarLine=Instance.new("Frame",MainFrame)
 SidebarLine.Size=UDim2.new(0,1,1,-36) SidebarLine.Position=UDim2.new(0,90,0,36)
 SidebarLine.BackgroundColor3=Color3.fromRGB(60,40,90) SidebarLine.BorderSizePixel=0
 
-local ContentArea = Instance.new("Frame",MainFrame)
+local ContentArea=Instance.new("Frame",MainFrame)
 ContentArea.Size=UDim2.new(1,-91,1,-36) ContentArea.Position=UDim2.new(0,91,0,36)
 ContentArea.BackgroundTransparency=1 ContentArea.ClipsDescendants=true
 
 -- ================================================================
--- SECTION 16: TABS
+-- SECTION 17: TABS
 -- ================================================================
 local function makeTab()
     local s=Instance.new("ScrollingFrame",ContentArea)
@@ -560,15 +618,12 @@ local function makeTab()
     return s
 end
 
-local TabGfx    = makeTab()
-local TabSky    = makeTab()
-local TabBoost  = makeTab()
-local TabTheme  = makeTab()
-local TabFPS    = makeTab()
-local TabCinema = makeTab()
-local allTabs   = {TabGfx,TabSky,TabBoost,TabTheme,TabFPS,TabCinema}
+local TabGfx=makeTab() local TabSky=makeTab()
+local TabBoost=makeTab() local TabTheme=makeTab()
+local TabFPS=makeTab() local TabCinema=makeTab()
+local allTabs={TabGfx,TabSky,TabBoost,TabTheme,TabFPS,TabCinema}
 
-local TAB_DEFS = {
+local TAB_DEFS={
     {text="Graphics", icon="🎨", tab=TabGfx},
     {text="Skybox",   icon="🌌", tab=TabSky},
     {text="Boost",    icon="⚡", tab=TabBoost},
@@ -578,15 +633,14 @@ local TAB_DEFS = {
 }
 
 -- ================================================================
--- SECTION 17: TAB BUTTONS
--- [FIX] เปลี่ยนสีตาม theme ทันที รวม Liquid Glass (ใส ไม่ขาว)
+-- SECTION 18: TAB BUTTONS
 -- ================================================================
-local tabButtons = {}
-local activeTab  = nil
-local BTN_H, BTN_GAP = 26, 30
+local tabButtons={}
+local activeTab=nil
+local BTN_H,BTN_GAP=26,30
 
-for i, def in ipairs(TAB_DEFS) do
-    local Btn = Instance.new("TextButton",Sidebar)
+for i,def in ipairs(TAB_DEFS) do
+    local Btn=Instance.new("TextButton",Sidebar)
     Btn.Size=UDim2.new(1,-8,0,BTN_H) Btn.Position=UDim2.new(0,4,0,(i-1)*BTN_GAP+6)
     Btn.BackgroundColor3=Color3.fromRGB(18,14,28) Btn.BackgroundTransparency=0.45
     Btn.Text=def.icon.." "..def.text Btn.TextColor3=Color3.fromRGB(160,160,175)
@@ -597,30 +651,28 @@ for i, def in ipairs(TAB_DEFS) do
     spring(Btn)
     table.insert(tabButtons,{btn=Btn,tab=def.tab})
 end
-
-Sidebar.CanvasSize = UDim2.new(0,0,0,#TAB_DEFS*BTN_GAP+20)
+Sidebar.CanvasSize=UDim2.new(0,0,0,#TAB_DEFS*BTN_GAP+20)
 
 local function refreshTabButtons()
-    local theme = COLOR_THEMES[currentThemeIndex]
+    local theme=COLOR_THEMES[currentThemeIndex]
     for _,bd in pairs(tabButtons) do
-        local s = bd.btn:FindFirstChildOfClass("UIStroke")
+        local s=bd.btn:FindFirstChildOfClass("UIStroke")
         if bd.tab==activeTab then
             if theme.glass then
-                -- [FIX] Liquid Glass: ปุ่ม active ใสๆ ฟ้าน้ำแข็ง ไม่ขาว
-                bd.btn.BackgroundColor3    = Color3.fromRGB(160,210,240)
-                bd.btn.BackgroundTransparency = 0.62
-                bd.btn.TextColor3          = Color3.fromRGB(200,240,255)
+                bd.btn.BackgroundColor3=Color3.fromRGB(160,210,240)
+                bd.btn.BackgroundTransparency=0.62
+                bd.btn.TextColor3=Color3.fromRGB(200,240,255)
                 if s then s.Color=Color3.fromRGB(180,225,255) s.Transparency=0.2 end
             else
-                bd.btn.BackgroundColor3    = theme.primary
-                bd.btn.BackgroundTransparency = 0.15
-                bd.btn.TextColor3          = Color3.fromRGB(255,255,255)
+                bd.btn.BackgroundColor3=theme.primary
+                bd.btn.BackgroundTransparency=0.15
+                bd.btn.TextColor3=Color3.fromRGB(255,255,255)
                 if s then s.Color=theme.secondary s.Transparency=0.3 end
             end
         else
-            bd.btn.BackgroundColor3    = Color3.fromRGB(18,14,28)
-            bd.btn.BackgroundTransparency = 0.45
-            bd.btn.TextColor3          = Color3.fromRGB(160,160,175)
+            bd.btn.BackgroundColor3=Color3.fromRGB(18,14,28)
+            bd.btn.BackgroundTransparency=0.45
+            bd.btn.TextColor3=Color3.fromRGB(160,160,175)
             if s then s.Color=Color3.fromRGB(55,40,80) s.Transparency=0.5 end
         end
     end
@@ -635,7 +687,7 @@ local function switchTab(targetTab)
         end)
         task.delay(0.1,function() if old then old.Visible=false old.Position=UDim2.new(0,0,0,0) end end)
     end
-    activeTab = targetTab
+    activeTab=targetTab
     refreshTabButtons()
     targetTab.Position=UDim2.new(0.12,0,0,0)
     targetTab.Visible=true
@@ -650,23 +702,31 @@ end
 switchTab(TabGfx)
 
 -- ================================================================
--- SECTION 18: DRAG
+-- SECTION 19: DRAG
+-- [FIX] ลาก MainFrame ไม่ทำให้ cinema slider เลื่อน
+--       ใช้ isDraggingMainFrame guard
 -- ================================================================
 local dragToggle,dragStart,startPos,isDragging=false,nil,nil,false
+local isDraggingMainFrame=false  -- [FIX] guard ป้องกัน slider เลื่อนตาม
 
 MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
         dragToggle=true dragStart=input.Position startPos=MainFrame.Position
         input.Changed:Connect(function()
-            if input.UserInputState==Enum.UserInputState.End then dragToggle=false isDragging=false end
+            if input.UserInputState==Enum.UserInputState.End then
+                dragToggle=false isDragging=false isDraggingMainFrame=false
+            end
         end)
     end
 end)
+
 UserInputService.InputChanged:Connect(function(input)
     if not dragToggle then return end
     if input.UserInputType~=Enum.UserInputType.MouseMovement and input.UserInputType~=Enum.UserInputType.Touch then return end
-    local delta = input.Position - dragStart
-    if not isDragging and (math.abs(delta.X)>4 or math.abs(delta.Y)>4) then isDragging=true end
+    local delta=input.Position-dragStart
+    if not isDragging and (math.abs(delta.X)>4 or math.abs(delta.Y)>4) then
+        isDragging=true isDraggingMainFrame=true
+    end
     if isDragging then
         local vp=workspace.CurrentCamera.ViewportSize
         local fw=MainFrame.Size.X.Offset local fh=MainFrame.Size.Y.Offset
@@ -675,7 +735,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 -- ================================================================
--- SECTION 19: MINIMIZE
+-- SECTION 20: MINIMIZE
 -- ================================================================
 local isMinimized=false
 MinBtn.MouseButton1Click:Connect(function()
@@ -695,7 +755,7 @@ MinBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================================================================
--- SECTION 20: TOGGLE HELPER
+-- SECTION 21: TOGGLE HELPER
 -- ================================================================
 local function createToggle(parent,text,order,defaultVal,callback)
     local F=Instance.new("Frame",parent)
@@ -732,8 +792,8 @@ local function autoCanvas(scroll,n,h,gap,pad)
 end
 
 -- ================================================================
--- SECTION 21: GRAPHICS TAB
--- [FIX] ทุก mode ซ้อนกันได้ Cinema ไม่ block
+-- SECTION 22: GRAPHICS TAB
+-- [FIX] Sky แยกออกมา ไม่ทับ Graphic
 -- ================================================================
 createToggle(TabGfx,"Depth of Field",1,dofEnabled,function(val)
     dofEnabled=val
@@ -758,9 +818,7 @@ createToggle(TabGfx,"Horror Fog",4,false,function(val)
             Lighting.FogColor=Color3.fromRGB(18,28,12) Lighting.Ambient=Color3.fromRGB(10,16,6)
         end)
         applyCinematicBlend()
-    else
-        resetFogLighting() ModeText="Status: Normal"
-    end
+    else resetFogLighting() ModeText="Status: Normal" end
 end)
 createToggle(TabGfx,"Rain Mode",5,false,function(val)
     rainEnabled=val
@@ -793,17 +851,30 @@ createToggle(TabGfx,"Heavenly Mode",6,false,function(val)
         ModeText="Status: Normal"
     end
 end)
+-- [NEW] Wind toggle อยู่ใน Graphics tab
+createToggle(TabGfx,"Wind Effect",7,false,function(val)
+    windEnabled=val
+    if val then
+        ModeText="Status: Windy" BorderColorNow=Color3.fromRGB(160,220,180)
+        startWind()
+    else
+        clearWind()
+        if not horrorFogEnabled and not rainEnabled and not heavenlyEnabled then
+            ModeText="Status: Normal"
+        end
+    end
+end)
 
 local LiveTimeLabel=Instance.new("TextLabel",TabGfx)
-LiveTimeLabel.Size=UDim2.new(1,-16,0,20) LiveTimeLabel.Position=UDim2.new(0,8,0,6*36+10)
+LiveTimeLabel.Size=UDim2.new(1,-16,0,20) LiveTimeLabel.Position=UDim2.new(0,8,0,7*36+10)
 LiveTimeLabel.BackgroundTransparency=1 LiveTimeLabel.Text="Status: Loaded"
 LiveTimeLabel.TextColor3=Color3.fromRGB(180,0,255) LiveTimeLabel.TextSize=11
 LiveTimeLabel.Font=Enum.Font.Code LiveTimeLabel.TextXAlignment=Enum.TextXAlignment.Center
-autoCanvas(TabGfx,6,30,6,32)
+autoCanvas(TabGfx,7,30,6,32)
 
 -- ================================================================
--- SECTION 22: SKYBOX TAB
--- [FIX] Sky แยกจาก Graphics ไม่ทับ
+-- SECTION 23: SKYBOX TAB
+-- [FIX] Sky แยกออกมาสมบูรณ์ ไม่ทับ Graphic tab
 -- ================================================================
 local function applySkyPreset(preset)
     pcall(function()
@@ -811,15 +882,31 @@ local function applySkyPreset(preset)
         sky.SkyboxBk=preset.bk sky.SkyboxDn=preset.dn sky.SkyboxFt=preset.ft
         sky.SkyboxLf=preset.lf sky.SkyboxRt=preset.rt sky.SkyboxUp=preset.up
         sky.StarCount=preset.star
-        -- [FIX] ถ้า Heavenly เปิดอยู่ ไม่เปลี่ยน ClockTime
         if not heavenlyEnabled then Lighting.ClockTime=preset.time end
     end)
 end
 
-local skyIdx=0
+-- ปุ่ม Reset Sky กลับค่าเดิม
+local ResetSkyBtn=Instance.new("TextButton",TabSky)
+ResetSkyBtn.Size=UDim2.new(1,-16,0,26) ResetSkyBtn.Position=UDim2.new(0,8,0,6)
+ResetSkyBtn.BackgroundColor3=Color3.fromRGB(60,40,80) ResetSkyBtn.BackgroundTransparency=0.3
+ResetSkyBtn.Text="↺ Reset Sky" ResetSkyBtn.TextColor3=Color3.fromRGB(200,200,220)
+ResetSkyBtn.Font=Enum.Font.SourceSansBold ResetSkyBtn.TextSize=11
+Instance.new("UICorner",ResetSkyBtn).CornerRadius=UDim.new(0,7)
+spring(ResetSkyBtn)
+ResetSkyBtn.MouseButton1Click:Connect(function()
+    pcall(function()
+        local sky=Lighting:FindFirstChild("StellarSky") or Instance.new("Sky",Lighting)
+        sky.SkyboxBk="" sky.SkyboxDn="" sky.SkyboxFt=""
+        sky.SkyboxLf="" sky.SkyboxRt="" sky.SkyboxUp=""
+        sky.StarCount=8000
+    end)
+end)
+
+local skyIdx=1
 for _,preset in pairs(SKY_PRESETS) do
     local SkyBtn=Instance.new("TextButton",TabSky)
-    SkyBtn.Size=UDim2.new(1,-16,0,30) SkyBtn.Position=UDim2.new(0,8,0,skyIdx*36+6)
+    SkyBtn.Size=UDim2.new(1,-16,0,28) SkyBtn.Position=UDim2.new(0,8,0,skyIdx*34+6)
     SkyBtn.BackgroundColor3=Color3.fromRGB(28,22,42) SkyBtn.BackgroundTransparency=0.35
     SkyBtn.Text=preset.name SkyBtn.TextColor3=Color3.fromRGB(235,235,255)
     SkyBtn.Font=Enum.Font.SourceSans SkyBtn.TextSize=12
@@ -831,14 +918,14 @@ for _,preset in pairs(SKY_PRESETS) do
 end
 
 local InputField=Instance.new("TextBox",TabSky)
-InputField.Size=UDim2.new(1,-16,0,28) InputField.Position=UDim2.new(0,8,0,skyIdx*36+10)
+InputField.Size=UDim2.new(1,-16,0,28) InputField.Position=UDim2.new(0,8,0,skyIdx*34+12)
 InputField.BackgroundColor3=Color3.fromRGB(18,13,28) InputField.BackgroundTransparency=0.35
 InputField.PlaceholderText="Asset ID หรือ rbxassetid://..." InputField.Text=""
 InputField.TextColor3=Color3.fromRGB(0,220,255) InputField.Font=Enum.Font.Code InputField.TextSize=11
 Instance.new("UICorner",InputField).CornerRadius=UDim.new(0,7)
 
 local ApplyCustomBtn=Instance.new("TextButton",TabSky)
-ApplyCustomBtn.Size=UDim2.new(1,-16,0,28) ApplyCustomBtn.Position=UDim2.new(0,8,0,skyIdx*36+44)
+ApplyCustomBtn.Size=UDim2.new(1,-16,0,28) ApplyCustomBtn.Position=UDim2.new(0,8,0,skyIdx*34+46)
 ApplyCustomBtn.BackgroundColor3=Color3.fromRGB(180,0,255) ApplyCustomBtn.BackgroundTransparency=0.25
 ApplyCustomBtn.Text="✦ Apply Custom ID" ApplyCustomBtn.TextColor3=Color3.fromRGB(255,255,255)
 ApplyCustomBtn.Font=Enum.Font.SourceSansBold ApplyCustomBtn.TextSize=12
@@ -851,10 +938,10 @@ ApplyCustomBtn.MouseButton1Click:Connect(function()
         applySkyPreset({bk=id,dn=id,ft=id,lf=id,rt=id,up=id,star=1000,time=Lighting.ClockTime})
     end
 end)
-autoCanvas(TabSky,skyIdx+2,30,6,20)
+TabSky.CanvasSize=UDim2.new(0,0,0,(skyIdx+3)*34+60)
 
 -- ================================================================
--- SECTION 23: BOOST TAB
+-- SECTION 24: BOOST TAB
 -- ================================================================
 local BoostInfo=Instance.new("TextLabel",TabBoost)
 BoostInfo.Size=UDim2.new(1,-16,0,40) BoostInfo.Position=UDim2.new(0,8,0,8)
@@ -883,8 +970,7 @@ end)
 autoCanvas(TabBoost,3,30,6,20)
 
 -- ================================================================
--- SECTION 24: THEME TAB
--- [FIX] applyTheme refresh tab buttons ทันที + Liquid Glass ใสจริง
+-- SECTION 25: THEME TAB
 -- ================================================================
 local ThemeTitle=Instance.new("TextLabel",TabTheme)
 ThemeTitle.Size=UDim2.new(1,-16,0,18) ThemeTitle.Position=UDim2.new(0,8,0,4)
@@ -906,7 +992,6 @@ local function applyTheme(index)
     currentThemeIndex=index
     activeThemeLabel.Text="Active: "..theme.name
     activeThemeLabel.TextColor3=theme.primary
-
     pcall(function()
         UIGradientStroke.Color=ColorSequence.new({
             ColorSequenceKeypoint.new(0,theme.primary),
@@ -914,28 +999,21 @@ local function applyTheme(index)
             ColorSequenceKeypoint.new(1,theme.primary),
         })
     end)
-
-    -- refresh tab buttons
     refreshTabButtons()
-
     pcall(function() TweenService:Create(MinBtn,TweenInfo.new(0.28),{TextColor3=theme.secondary}):Play() end)
     BorderColorNow=theme.primary
 
     if theme.glass then
-        -- [FIX] Liquid Glass — frame ใสจริงๆ สีน้ำแข็งจาง
-        GlassRefraction.Visible  = true
-        GlassHighlight.Visible   = true
-        MainFrame.BackgroundColor3       = Color3.fromRGB(8,14,22)
-        MainFrame.BackgroundTransparency = 0.18  -- เกือบใส
-        UIStroke.Thickness  = 2.2
-        SidebarLine.BackgroundColor3 = Color3.fromRGB(160,210,240)
-
+        GlassRefraction.Visible=true GlassHighlight.Visible=true
+        MainFrame.BackgroundColor3=Color3.fromRGB(8,14,22)
+        MainFrame.BackgroundTransparency=0.18
+        UIStroke.Thickness=2.2
+        SidebarLine.BackgroundColor3=Color3.fromRGB(160,210,240)
         if glassRotThread then pcall(function() task.cancel(glassRotThread) end) end
         glassRotThread=task.spawn(function()
             while currentThemeIndex==index and COLOR_THEMES[currentThemeIndex].glass do
                 pcall(function()
                     UIGradientStroke.Rotation=(tick()*16)%360
-                    -- shimmer เปลี่ยนสีตามเวลา
                     local h=((tick()*20)%360)/360
                     local c=Color3.fromHSV(h,0.3,1)
                     UIGradientStroke.Color=ColorSequence.new({
@@ -949,13 +1027,11 @@ local function applyTheme(index)
         end)
     else
         if glassRotThread then pcall(function() task.cancel(glassRotThread) end) glassRotThread=nil end
-        GlassRefraction.Visible  = false
-        GlassHighlight.Visible   = false
-        MainFrame.BackgroundColor3       = Color3.fromRGB(10,8,16)
-        MainFrame.BackgroundTransparency = 0.32
-        UIStroke.Thickness  = 1.8
-        UIGradientStroke.Rotation = 0
-        SidebarLine.BackgroundColor3 = Color3.fromRGB(60,40,90)
+        GlassRefraction.Visible=false GlassHighlight.Visible=false
+        MainFrame.BackgroundColor3=Color3.fromRGB(10,8,16)
+        MainFrame.BackgroundTransparency=0.32
+        UIStroke.Thickness=1.8 UIGradientStroke.Rotation=0
+        SidebarLine.BackgroundColor3=Color3.fromRGB(60,40,90)
         UIGradientStroke.Color=ColorSequence.new({
             ColorSequenceKeypoint.new(0,theme.primary),
             ColorSequenceKeypoint.new(0.5,theme.secondary),
@@ -982,8 +1058,7 @@ end
 autoCanvas(TabTheme,#COLOR_THEMES,27,5,52)
 
 -- ================================================================
--- SECTION 25: FPS CAP TAB
--- [FIX] FPS monitor แม่นขึ้น (วัดทุก 0.3s แทน 0.5s)
+-- SECTION 26: FPS CAP TAB
 -- ================================================================
 local FPSTitle=Instance.new("TextLabel",TabFPS)
 FPSTitle.Size=UDim2.new(1,-16,0,16) FPSTitle.Position=UDim2.new(0,8,0,4)
@@ -1066,114 +1141,170 @@ Instance.new("UICorner",ShowFPSPopupBtn).CornerRadius=UDim.new(0,7) spring(ShowF
 autoCanvas(TabFPS,6,30,6,30) setFpsCap(60)
 
 -- ================================================================
--- SECTION 26: CINEMATIC TAB
--- [FIX] Cinema ซ้อน mode อื่นได้ทั้งหมด slider ทำงานทันที
+-- SECTION 27: CINEMATIC TAB
+-- [FIX] Slider ใหม่ — ปุ่มสีชาว + แถบไล่สีตามค่า + drag ไม่ชนกับ MainFrame
 -- ================================================================
-local cinTracks={}
 
-local function makeSlider(parent,yLbl,labelText,yTrack,fillColor,knobColor,defRel)
-    local lbl=Instance.new("TextLabel",parent)
-    lbl.Size=UDim2.new(1,-16,0,13) lbl.Position=UDim2.new(0,8,0,yLbl)
-    lbl.BackgroundTransparency=1 lbl.Text=labelText
-    lbl.TextColor3=Color3.fromRGB(155,162,188) lbl.TextSize=10
-    lbl.Font=Enum.Font.SourceSans lbl.TextXAlignment=Enum.TextXAlignment.Left
+-- [FIX] Cinema slider ใหม่ สวยขึ้น มี value label + color gradient
+local function makeFancySlider(parent, yPos, labelText, fillColorA, fillColorB, defRel, changeFn)
+    -- container
+    local container = Instance.new("Frame", parent)
+    container.Size = UDim2.new(1,-14,0,42)
+    container.Position = UDim2.new(0,7,0,yPos)
+    container.BackgroundColor3 = Color3.fromRGB(16,12,26)
+    container.BackgroundTransparency = 0.45
+    container.BorderSizePixel = 0
+    Instance.new("UICorner", container).CornerRadius = UDim.new(0,8)
 
-    local track=Instance.new("Frame",parent)
-    track.Size=UDim2.new(1,-16,0,7) track.Position=UDim2.new(0,8,0,yTrack)
-    track.BackgroundColor3=Color3.fromRGB(28,22,42) track.BackgroundTransparency=0.6 track.BorderSizePixel=0
-    Instance.new("UICorner",track).CornerRadius=UDim.new(0,4)
+    -- label
+    local lbl = Instance.new("TextLabel", container)
+    lbl.Size = UDim2.new(0.7,0,0,16)
+    lbl.Position = UDim2.new(0,8,0,3)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = labelText
+    lbl.TextColor3 = Color3.fromRGB(200,205,225)
+    lbl.TextSize = 10
+    lbl.Font = Enum.Font.SourceSansBold
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
 
-    local fill=Instance.new("Frame",track)
-    fill.Size=UDim2.new(defRel,0,1,0) fill.BackgroundColor3=fillColor fill.BorderSizePixel=0
-    Instance.new("UICorner",fill).CornerRadius=UDim.new(0,4)
+    -- value label (แสดง % หรือค่า)
+    local valLbl = Instance.new("TextLabel", container)
+    valLbl.Size = UDim2.new(0.3,0,0,16)
+    valLbl.Position = UDim2.new(0.7,0,0,3)
+    valLbl.BackgroundTransparency = 1
+    valLbl.Text = math.floor(defRel*100).."%"
+    valLbl.TextColor3 = fillColorB
+    valLbl.TextSize = 10
+    valLbl.Font = Enum.Font.Code
+    valLbl.TextXAlignment = Enum.TextXAlignment.Right
 
-    local knob=Instance.new("TextButton",track)
-    knob.Size=UDim2.new(0,14,0,14) knob.Position=UDim2.new(defRel,-7,0.5,-7)
-    knob.BackgroundColor3=knobColor knob.Text="" knob.BorderSizePixel=0 knob.ZIndex=5
-    Instance.new("UICorner",knob).CornerRadius=UDim.new(1,0)
-    Instance.new("UIStroke",knob).Color=fillColor
+    -- track
+    local track = Instance.new("Frame", container)
+    track.Size = UDim2.new(1,-16,0,7)
+    track.Position = UDim2.new(0,8,0,24)
+    track.BackgroundColor3 = Color3.fromRGB(22,18,36)
+    track.BackgroundTransparency = 0.3
+    track.BorderSizePixel = 0
+    Instance.new("UICorner", track).CornerRadius = UDim.new(0,4)
+
+    -- fill (gradient ไล่สีตามค่า)
+    local fill = Instance.new("Frame", track)
+    fill.Size = UDim2.new(defRel,0,1,0)
+    fill.BackgroundColor3 = fillColorA
+    fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(0,4)
+    local fillGrad = Instance.new("UIGradient", fill)
+    fillGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, fillColorA),
+        ColorSequenceKeypoint.new(1, fillColorB),
+    })
+
+    -- knob (สีชาวกลม)
+    local knob = Instance.new("TextButton", track)
+    knob.Size = UDim2.new(0,16,0,16)
+    knob.Position = UDim2.new(defRel,-8,0.5,-8)
+    knob.BackgroundColor3 = Color3.fromRGB(235,235,245)
+    knob.Text = "" knob.BorderSizePixel = 0 knob.ZIndex = 5
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+    local ks = Instance.new("UIStroke", knob)
+    ks.Color = fillColorB ks.Thickness = 2
     spring(knob)
-    return track,fill,knob
-end
 
-local function bindSlider(track,fill,knob,changeFn)
-    local dragging=false
+    -- bind drag
+    -- [FIX] เช็ค isDraggingMainFrame ก่อน ถ้า drag window อยู่ ไม่ให้ slider ทำงาน
+    local dragging = false
+    local pendingRel = defRel  -- เก็บค่าไว้ apply ตอนปล่อย
+    local isDragActive = false
+
     local function startDrag(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-            dragging=true
+            if isDraggingMainFrame then return end  -- [FIX] ป้องกัน
+            dragging=true isDragActive=true
         end
     end
     knob.InputBegan:Connect(startDrag)
     track.InputBegan:Connect(startDrag)
+
     UserInputService.InputEnded:Connect(function(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-            dragging=false
+            if dragging and isDragActive then
+                -- [FIX] apply จริงตอนปล่อยมือ (real-only during drag)
+                pcall(function() changeFn(pendingRel) end)
+            end
+            dragging=false isDragActive=false
         end
     end)
+
     UserInputService.InputChanged:Connect(function(i)
         if not dragging then return end
+        if isDraggingMainFrame then dragging=false return end  -- [FIX]
         if i.UserInputType~=Enum.UserInputType.MouseMovement and i.UserInputType~=Enum.UserInputType.Touch then return end
-        local rel=math.clamp((i.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
-        fill.Size=UDim2.new(rel,0,1,0) knob.Position=UDim2.new(rel,-7,0.5,-7)
-        pcall(function() changeFn(rel) end)
+        local rel = math.clamp((i.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
+        pendingRel = rel
+        -- อัปเดต UI ทันที แต่ apply ค่าจริงตอนปล่อยมือ
+        fill.Size = UDim2.new(rel,0,1,0)
+        knob.Position = UDim2.new(rel,-8,0.5,-8)
+        valLbl.Text = math.floor(rel*100).."%"
+        -- [FIX] อัปเดต gradient สีตาม value ให้ไล่ถึงตำแหน่งนั้น
+        fillGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, fillColorA),
+            ColorSequenceKeypoint.new(1, lerpC(fillColorA,fillColorB,rel)),
+        })
     end)
+
+    return container, fill, knob, valLbl
 end
 
 local CinTitle=Instance.new("TextLabel",TabCinema)
 CinTitle.Size=UDim2.new(1,-16,0,16) CinTitle.Position=UDim2.new(0,8,0,4)
-CinTitle.BackgroundTransparency=1 CinTitle.Text="🎬 Cinematic — ซ้อนได้ทุก mode"
+CinTitle.BackgroundTransparency=1 CinTitle.Text="🎬 Cinema — ซ้อนได้ทุก mode"
 CinTitle.TextColor3=Color3.fromRGB(180,185,210) CinTitle.TextSize=10
 CinTitle.Font=Enum.Font.SourceSansBold CinTitle.TextXAlignment=Enum.TextXAlignment.Left
 
--- [FIX] Cinema เปิดได้ไม่ block mode อื่น ซ้อนได้หมด
 createToggle(TabCinema,"Cinematic Mode",1,false,function(val)
     cinematicEnabled=val
     if val then
         ModeText="Status: Cinematic+" BorderColorNow=Color3.fromRGB(120,125,185)
         pcall(function()
-            -- blend ทับ mode ที่กำลังเปิดอยู่
             applyCinematicBlend()
             Lighting.GlobalShadows=true Lighting.ShadowSoftness=0.65
-            -- FOV เท่านั้น ไม่ยุ่ง lighting อื่น
             workspace.CurrentCamera.FieldOfView=70
         end)
     else
         ModeText="Status: Normal"
         pcall(function() workspace.CurrentCamera.FieldOfView=originalFOV end)
-        -- คืน lighting ตาม mode ที่เปิดอยู่
-        if horrorFogEnabled then applyLighting(PROFILES.HORROR)
-        elseif rainEnabled   then applyLighting(PROFILES.RAIN)
-        elseif heavenlyEnabled then applyLighting(PROFILES.HEAVENLY)
-        else resetFogLighting() end
+        reapplyActiveMode()
     end
 end)
 
-local BY=50
-local sliderDefs={
-    {BY+0,  "DOF Intensity",           BY+15,  Color3.fromRGB(100,135,225),Color3.fromRGB(200,218,255),0.55, function(r) DOF.FarIntensity=r end},
-    {BY+38, "Contrast",                BY+53,  Color3.fromRGB(185,80,255), Color3.fromRGB(225,185,255),0.6,  function(r) ColorCorrection.Contrast=lerpN(-1,1,r) end},
-    {BY+76, "Brightness/Exposure",     BY+91,  Color3.fromRGB(255,195,80), Color3.fromRGB(255,250,190),0.45, function(r) Lighting.ExposureCompensation=lerpN(-2,1,r) end},
-    {BY+114,"Shadow Softness",         BY+129, Color3.fromRGB(135,135,140),Color3.fromRGB(215,215,220),0.65, function(r) Lighting.ShadowSoftness=r end},
-    {BY+152,"Saturation",              BY+167, Color3.fromRGB(100,225,180),Color3.fromRGB(180,255,235),0.4,  function(r) ColorCorrection.Saturation=lerpN(-1,1,r) end},
-    {BY+190,"Bloom Intensity",         BY+205, Color3.fromRGB(255,240,80), Color3.fromRGB(255,255,192),0.08, function(r) Bloom.Intensity=r*2 end},
-    {BY+228,"Atmosphere Haze",         BY+243, Color3.fromRGB(140,178,225),Color3.fromRGB(195,220,255),0.3,  function(r) Atmosphere.Haze=r*5 end},
-    {BY+266,"Fog Start",               BY+281, Color3.fromRGB(100,162,205),Color3.fromRGB(180,222,255),0.1,  function(r) Lighting.FogStart=lerpN(0,300,r) end},
-    {BY+304,"Fog End",                 BY+319, Color3.fromRGB(60,122,182), Color3.fromRGB(140,202,255),0.3,  function(r) Lighting.FogEnd=lerpN(50,2000,r) end},
-    {BY+342,"Field of View (30-120°)", BY+357, Color3.fromRGB(80,212,172), Color3.fromRGB(170,255,222),0.44, function(r) pcall(function() workspace.CurrentCamera.FieldOfView=lerpN(30,120,r) end) end},
-    {BY+380,"Sun Rays",                BY+395, Color3.fromRGB(255,162,52), Color3.fromRGB(255,212,152),0.05, function(r) SunRays.Intensity=r end},
-    {BY+418,"Rain Particles (10-150)", BY+433, Color3.fromRGB(100,182,255),Color3.fromRGB(180,228,255),0.25, function(r) rainParticleCount=math.floor(lerpN(10,150,r)) if rainEnabled then createRainParticles() end end},
+-- wind strength slider อยู่ใน Cinema tab ด้วย
+makeFancySlider(TabCinema, 54, "💨 Wind Strength",
+    Color3.fromRGB(100,200,160), Color3.fromRGB(180,255,220), 0.5,
+    function(r) windStrength=r end)
+
+local BY = 102
+local sliderDefs = {
+    {"DOF Intensity",           Color3.fromRGB(100,135,225), Color3.fromRGB(180,210,255), 0.55, function(r) DOF.FarIntensity=r end},
+    {"Contrast",                Color3.fromRGB(185,80,255),  Color3.fromRGB(220,170,255), 0.6,  function(r) ColorCorrection.Contrast=lerpN(-1,1,r) end},
+    {"Brightness/Exposure",     Color3.fromRGB(255,180,60),  Color3.fromRGB(255,240,160), 0.45, function(r) Lighting.ExposureCompensation=lerpN(-2,1,r) end},
+    {"Shadow Softness",         Color3.fromRGB(120,120,135), Color3.fromRGB(200,200,215), 0.65, function(r) Lighting.ShadowSoftness=r end},
+    {"Saturation",              Color3.fromRGB(80,210,160),  Color3.fromRGB(160,255,220), 0.4,  function(r) ColorCorrection.Saturation=lerpN(-1,1,r) end},
+    {"Bloom Intensity",         Color3.fromRGB(255,220,60),  Color3.fromRGB(255,255,160), 0.08, function(r) Bloom.Intensity=r*2 end},
+    {"Atmosphere Haze",         Color3.fromRGB(120,160,210), Color3.fromRGB(180,215,255), 0.3,  function(r) Atmosphere.Haze=r*5 end},
+    {"Fog Start",               Color3.fromRGB(90,145,195),  Color3.fromRGB(160,210,255), 0.1,  function(r) Lighting.FogStart=lerpN(0,300,r) end},
+    {"Fog End",                 Color3.fromRGB(60,115,175),  Color3.fromRGB(130,195,255), 0.3,  function(r) Lighting.FogEnd=lerpN(50,2000,r) end},
+    {"Field of View (30-120°)", Color3.fromRGB(70,200,160),  Color3.fromRGB(150,255,210), 0.44, function(r) pcall(function() workspace.CurrentCamera.FieldOfView=lerpN(30,120,r) end) end},
+    {"Sun Rays",                Color3.fromRGB(255,150,40),  Color3.fromRGB(255,205,140), 0.05, function(r) SunRays.Intensity=r end},
+    {"Rain Particles (10-150)", Color3.fromRGB(90,170,255),  Color3.fromRGB(170,220,255), 0.25, function(r) rainParticleCount=math.floor(lerpN(10,150,r)) if rainEnabled then createRainParticles() end end},
 }
 
-for _,def in ipairs(sliderDefs) do
-    local tr,fi,kn=makeSlider(TabCinema,def[1],def[2],def[3],def[4],def[5],def[6])
-    bindSlider(tr,fi,kn,def[7])
-    table.insert(cinTracks,tr)
+for i,def in ipairs(sliderDefs) do
+    makeFancySlider(TabCinema, BY+(i-1)*48, def[1], def[2], def[3], def[4], def[5])
 end
-autoCanvas(TabCinema,#sliderDefs+2,38,0,22)
+TabCinema.CanvasSize = UDim2.new(0,0,0, BY + #sliderDefs*48 + 20)
 
 -- ================================================================
--- SECTION 27: FPS POPUP
--- [FIX] วัดแม่นขึ้น + แสดงสีสวยขึ้น
+-- SECTION 28: FPS POPUP
 -- ================================================================
 local FPSPopup=Instance.new("Frame",ScreenGui)
 FPSPopup.Name="FPSPopup" FPSPopup.Size=UDim2.new(0,105,0,72)
@@ -1221,7 +1352,6 @@ PopupFPSBig.BackgroundTransparency=1 PopupFPSBig.Text="--"
 PopupFPSBig.TextColor3=Color3.fromRGB(0,255,180) PopupFPSBig.TextScaled=true
 PopupFPSBig.Font=Enum.Font.Code PopupFPSBig.TextXAlignment=Enum.TextXAlignment.Center PopupFPSBig.ZIndex=22
 
--- [FIX] แถบล่าง popup แสดง cap + สถานะ
 local PopupBottomBar=Instance.new("Frame",FPSPopup)
 PopupBottomBar.Size=UDim2.new(1,0,0,12) PopupBottomBar.Position=UDim2.new(0,0,1,-12)
 PopupBottomBar.BackgroundColor3=Color3.fromRGB(10,8,20) PopupBottomBar.BackgroundTransparency=0.4
@@ -1237,8 +1367,7 @@ local PopupStatusLabel=Instance.new("TextLabel",PopupBottomBar)
 PopupStatusLabel.Size=UDim2.new(0.5,0,1,0) PopupStatusLabel.Position=UDim2.new(0.5,0,0,0)
 PopupStatusLabel.BackgroundTransparency=1 PopupStatusLabel.Text="normal"
 PopupStatusLabel.TextColor3=Color3.fromRGB(100,200,150) PopupStatusLabel.TextSize=8
-PopupStatusLabel.Font=Enum.Font.Code PopupStatusLabel.TextXAlignment=Enum.TextXAlignment.Right
-PopupStatusLabel.ZIndex=23
+PopupStatusLabel.Font=Enum.Font.Code PopupStatusLabel.TextXAlignment=Enum.TextXAlignment.Right PopupStatusLabel.ZIndex=23
 
 local PopupResize=Instance.new("TextButton",FPSPopup)
 PopupResize.Size=UDim2.new(0,14,0,14) PopupResize.Position=UDim2.new(1,-14,1,-14)
@@ -1275,8 +1404,7 @@ UserInputService.InputChanged:Connect(function(i)
     if pResize and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
         local d=i.Position-pResizeStart
         local nW=math.clamp(pResizeSize.X+d.X,48,300) local nH=math.clamp(pResizeSize.Y+d.Y,40,200)
-        PopupTitle.Visible=nW>=65 PopupCapLabel.Visible=nH>=56
-        PopupCloseBtn.Visible=nW>=65
+        PopupTitle.Visible=nW>=65 PopupCapLabel.Visible=nH>=56 PopupCloseBtn.Visible=nW>=65
         pcall(function() TweenService:Create(FPSPopup,TweenInfo.new(0.04,Enum.EasingStyle.Quad),{Size=UDim2.new(0,nW,0,nH)}):Play() end)
     end
 end)
@@ -1301,7 +1429,7 @@ ShowFPSPopupBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================================================================
--- SECTION 28: GRID SIZE + RESIZE
+-- SECTION 29: GRID SIZE + RESIZE
 -- ================================================================
 local camera=workspace.CurrentCamera
 local GRID=64
@@ -1318,7 +1446,7 @@ local function gridPx(slots,axis)
 end
 
 local function updateUIVisibility(w,h)
-    local showFull = w>=110 and h>=72
+    local showFull=w>=110 and h>=72
     Sidebar.Visible=showFull ContentArea.Visible=showFull
     SidebarLine.Visible=showFull TitleLabel.Visible=w>=75 SizeBtn.Visible=w>=88
     if showFull then
@@ -1384,8 +1512,7 @@ task.spawn(function()
 end)
 
 -- ================================================================
--- SECTION 29: RENDER LOOP
--- [FIX] วัด FPS ทุก 0.3s แม่นกว่าเดิม + status bar popup
+-- SECTION 30: RENDER LOOP
 -- ================================================================
 local nextUpdate,frameCount,lastBorderColor=0,0,nil
 
@@ -1394,7 +1521,7 @@ RunService.RenderStepped:Connect(function(dt)
 
     if rainbowActive then
         rainbowHue=(rainbowHue+dt*72)%360
-        local col =Color3.fromHSV(rainbowHue/360,1,1)
+        local col=Color3.fromHSV(rainbowHue/360,1,1)
         local col2=Color3.fromHSV(((rainbowHue+120)%360)/360,1,1)
         pcall(function()
             UIGradientStroke.Color=ColorSequence.new({
@@ -1407,17 +1534,14 @@ RunService.RenderStepped:Connect(function(dt)
         if activeThemeLabel then activeThemeLabel.TextColor3=col end
     end
 
-    -- [FIX] อัปเดต FPS ทุก 0.3s แม่นขึ้น
     if nextUpdate>=0.3 then
         local fps=math.round(frameCount/nextUpdate)
-
         if LiveTimeLabel then LiveTimeLabel.Text=ModeText LiveTimeLabel.TextColor3=BorderColorNow end
 
         if FPSPopup.Visible then
             PopupFPSBig.Text=tostring(fps)
-            local capStr = targetFpsCap==165 and "165⚡" or tostring(targetFpsCap)
+            local capStr=targetFpsCap==165 and "165⚡" or tostring(targetFpsCap)
             PopupCapLabel.Text="cap:"..capStr
-            -- [FIX] status label
             local ratio=fps/math.max(targetFpsCap,1)
             if ratio>=0.9 then
                 PopupStatusLabel.Text="smooth" PopupStatusLabel.TextColor3=Color3.fromRGB(80,255,160)
@@ -1447,7 +1571,7 @@ RunService.RenderStepped:Connect(function(dt)
 end)
 
 -- ================================================================
--- SECTION 30: INIT
+-- SECTION 31: INIT
 -- ================================================================
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
-print("✅ MYTHICAL SHADER v5.1 — Rain reflect / Cinema stackable / Glass UI / FPS stable!")
+print("✅ MYTHICAL SHADER v5.2 — Wind / FancySlider / CinemaFix / SkyFix!")
