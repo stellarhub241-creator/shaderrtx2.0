@@ -15,11 +15,7 @@ pcall(function()
     local s = settings()
     if s and s.Rendering then s.Rendering.QualityLevel = Enum.QualityLevel.Level21 end
 end)
-
-pcall(function()
-    Terrain.WaterReflectance  = 1
-    Terrain.WaterTransparency = 0.55
-end)
+pcall(function() Terrain.WaterReflectance=1 Terrain.WaterTransparency=0.55 end)
 
 local oldUI = CoreGui:FindFirstChild("STELLARHUB_MYTHICAL")
 if oldUI then oldUI:Destroy() task.wait(0.1) end
@@ -55,43 +51,47 @@ local originalShadow     = Lighting.ShadowSoftness
 local originalOutdoor    = Lighting.OutdoorAmbient
 
 -- ================================================================
--- SECTION 3: THEMES
+-- SECTION 3: THEMES (เพิ่ม ballColor)
 -- ================================================================
 local COLOR_THEMES = {
-    {name="Purple",      primary=Color3.fromRGB(180,0,255),   secondary=Color3.fromRGB(0,220,255),   glass=false},
-    {name="Red",         primary=Color3.fromRGB(255,40,80),   secondary=Color3.fromRGB(255,120,0),   glass=false},
-    {name="Pink",        primary=Color3.fromRGB(255,80,180),  secondary=Color3.fromRGB(255,180,220), glass=false},
-    {name="Ocean",       primary=Color3.fromRGB(0,160,220),   secondary=Color3.fromRGB(0,230,200),   glass=false},
-    {name="Crystal",     primary=Color3.fromRGB(140,220,255), secondary=Color3.fromRGB(200,255,240), glass=false},
-    {name="Crimson",     primary=Color3.fromRGB(200,0,50),    secondary=Color3.fromRGB(255,80,40),   glass=false},
-    {name="Liquid Glass",primary=Color3.fromRGB(200,235,255), secondary=Color3.fromRGB(180,220,255), glass=true },
-    {name="Rainbow",     primary=Color3.fromRGB(255,0,0),     secondary=Color3.fromRGB(0,0,255),     glass=false},
+    {name="Purple",      primary=Color3.fromRGB(180,0,255),   secondary=Color3.fromRGB(0,220,255),   ball=Color3.fromRGB(210,140,255), glass=false},
+    {name="Red",         primary=Color3.fromRGB(255,40,80),   secondary=Color3.fromRGB(255,120,0),   ball=Color3.fromRGB(255,140,150), glass=false},
+    {name="Pink",        primary=Color3.fromRGB(255,80,180),  secondary=Color3.fromRGB(255,180,220), ball=Color3.fromRGB(255,180,210), glass=false},
+    {name="Ocean",       primary=Color3.fromRGB(0,160,220),   secondary=Color3.fromRGB(0,230,200),   ball=Color3.fromRGB(120,210,240), glass=false},
+    {name="Crystal",     primary=Color3.fromRGB(140,220,255), secondary=Color3.fromRGB(200,255,240), ball=Color3.fromRGB(180,235,255), glass=false},
+    {name="Crimson",     primary=Color3.fromRGB(200,0,50),    secondary=Color3.fromRGB(255,80,40),   ball=Color3.fromRGB(255,130,130), glass=false},
+    {name="Liquid Glass",primary=Color3.fromRGB(200,235,255), secondary=Color3.fromRGB(180,220,255), ball=Color3.fromRGB(210,240,255), glass=true },
+    {name="Rainbow",     primary=Color3.fromRGB(255,0,0),     secondary=Color3.fromRGB(0,0,255),     ball=Color3.fromRGB(255,180,180), glass=false},
 }
 
 -- ================================================================
--- SECTION 4: SKY PRESETS
+-- SECTION 4: SKY PRESETS (array แทน dict)
 -- ================================================================
 local SKY_PRESETS = {
-    {name="🌌 Nebula Space", bk="rbxassetid://152703816",  dn="rbxassetid://152703803",  ft="rbxassetid://152703813",  lf="rbxassetid://152703806",  rt="rbxassetid://152703812",  up="rbxassetid://152703811",  star=10000, time=18,   moonSize=11, brightness=1.8, ambient=Color3.fromRGB(20,28,55)},
-    {name="🌸 Pastel Sky",   bk="rbxassetid://10143500350",dn="rbxassetid://10143500350",ft="rbxassetid://10143500350",lf="rbxassetid://10143500350",rt="rbxassetid://10143500350",up="rbxassetid://10143500350",star=100,   time=7.5,  moonSize=11, brightness=1.5, ambient=Color3.fromRGB(50,50,60)},
-    {name="🌃 Neon Cyber",   bk="rbxassetid://252703816",  dn="rbxassetid://252703803",  ft="rbxassetid://252703813",  lf="rbxassetid://252703806",  rt="rbxassetid://252703812",  up="rbxassetid://252703811",  star=5000,  time=17.5, moonSize=11, brightness=1.8, ambient=Color3.fromRGB(20,28,55)},
-    {name="☀️ Realistic",    bk="rbxassetid://1079349813", dn="rbxassetid://1079349813", ft="rbxassetid://1079349813", lf="rbxassetid://1079349813", rt="rbxassetid://1079349813", up="rbxassetid://1079349813", star=3000,  time=12,   moonSize=11, brightness=1.5, ambient=Color3.fromRGB(50,50,60)},
-    {name="🌙 Midnight",     bk="rbxassetid://152703816",  dn="rbxassetid://152703803",  ft="rbxassetid://152703813",  lf="rbxassetid://152703806",  rt="rbxassetid://152703812",  up="rbxassetid://152703811",  star=15000, time=0,    moonSize=11, brightness=1.8, ambient=Color3.fromRGB(20,28,55)},
-    {name="🌅 Sunset",       bk="rbxassetid://1079349813", dn="rbxassetid://1079349813", ft="rbxassetid://1079349813", lf="rbxassetid://1079349813", rt="rbxassetid://1079349813", up="rbxassetid://1079349813", star=200,   time=19,   moonSize=11, brightness=2.2, ambient=Color3.fromRGB(80,50,30)},
-    {name="🌕 Full Moon",    bk="rbxassetid://152703816",  dn="rbxassetid://152703803",  ft="rbxassetid://152703813",  lf="rbxassetid://152703806",  rt="rbxassetid://152703812",  up="rbxassetid://152703811",  star=12000, time=0,    moonSize=35, brightness=1.4, ambient=Color3.fromRGB(45,55,90)},
+    {name="🌌 Nebula Space", bk="rbxassetid://152703816",  dn="rbxassetid://152703803",  ft="rbxassetid://152703813",  lf="rbxassetid://152703806",  rt="rbxassetid://152703812",  up="rbxassetid://152703811",  star=10000, time=18,   moonSize=11, brightness=1.8,  ambient=Color3.fromRGB(20,28,55)},
+    {name="🌸 Pastel Sky",   bk="rbxassetid://10143500350",dn="rbxassetid://10143500350",ft="rbxassetid://10143500350",lf="rbxassetid://10143500350",rt="rbxassetid://10143500350",up="rbxassetid://10143500350",star=100,   time=7.5,  moonSize=11, brightness=1.5,  ambient=Color3.fromRGB(50,50,60)},
+    {name="🌃 Neon Cyber",   bk="rbxassetid://252703816",  dn="rbxassetid://252703803",  ft="rbxassetid://252703813",  lf="rbxassetid://252703806",  rt="rbxassetid://252703812",  up="rbxassetid://252703811",  star=5000,  time=17.5, moonSize=11, brightness=1.8,  ambient=Color3.fromRGB(20,28,55)},
+    {name="☀️ Realistic",    bk="rbxassetid://1079349813", dn="rbxassetid://1079349813", ft="rbxassetid://1079349813", lf="rbxassetid://1079349813", rt="rbxassetid://1079349813", up="rbxassetid://1079349813", star=3000,  time=12,   moonSize=11, brightness=1.5,  ambient=Color3.fromRGB(50,50,60)},
+    {name="🌙 Midnight",     bk="rbxassetid://152703816",  dn="rbxassetid://152703803",  ft="rbxassetid://152703813",  lf="rbxassetid://152703806",  rt="rbxassetid://152703812",  up="rbxassetid://152703811",  star=15000, time=0,    moonSize=11, brightness=1.8,  ambient=Color3.fromRGB(20,28,55)},
+    {name="🌅 Sunset",       bk="rbxassetid://1079349813", dn="rbxassetid://1079349813", ft="rbxassetid://1079349813", lf="rbxassetid://1079349813", rt="rbxassetid://1079349813", up="rbxassetid://1079349813", star=200,   time=19,   moonSize=11, brightness=2.2,  ambient=Color3.fromRGB(80,50,30)},
+    {name="🌕 Full Moon",    bk="rbxassetid://152703816",  dn="rbxassetid://152703803",  ft="rbxassetid://152703813",  lf="rbxassetid://152703806",  rt="rbxassetid://152703812",  up="rbxassetid://152703811",  star=12000, time=0,    moonSize=35, brightness=1.4,  ambient=Color3.fromRGB(45,55,90)},
 }
 
 -- ================================================================
 -- SECTION 5: LIGHTING SETUP
 -- ================================================================
-for _, v in pairs(Lighting:GetChildren()) do
-    if v:IsA("PostProcessEffect") or v:IsA("Atmosphere") or v:IsA("Sky") then
-        pcall(function() v:Destroy() end)
-    end
+-- [FIX] ลบ Sky เดิมทุกชิ้นรวม Sky ของแมพก่อน แล้วสร้างใหม่
+for _, v in ipairs(Lighting:GetChildren()) do
+    pcall(function()
+        if v:IsA("PostProcessEffect") or v:IsA("Atmosphere") or v:IsA("Sky") then
+            v:Destroy()
+        end
+    end)
 end
 
 local Sky = Instance.new("Sky", Lighting)
-Sky.Name="StellarSky" Sky.SunTextureId="rbxassetid://1079349813" Sky.SunAngularSize=21
+Sky.Name="StellarSky"
+Sky.SunTextureId="rbxassetid://1079349813" Sky.SunAngularSize=21
 Sky.MoonTextureId="rbxassetid://6444320592" Sky.MoonAngularSize=11
 Sky.StarCount=8000 Sky.CelestialBodiesShown=true
 
@@ -102,19 +102,26 @@ local SunRays         = Instance.new("SunRaysEffect", Lighting)
 local DOF             = Instance.new("DepthOfFieldEffect", Lighting)
 DOF.Name="StellarDOF" DOF.NearIntensity=0 DOF.FocusDistance=35 DOF.InFocusRadius=20 DOF.Enabled=dofEnabled
 
+-- [FIX] ป้องกัน Sky ของแมพเพิ่มกลับมา
+Lighting.ChildAdded:Connect(function(child)
+    if child:IsA("Sky") and child.Name~="StellarSky" then
+        pcall(function() child:Destroy() end)
+    end
+end)
+
 -- ================================================================
 -- SECTION 6: PROFILES
 -- ================================================================
 local PROFILES = {
-    DAWN     = {brightness=1.6, exposure=0.15, shadow=0.2, ambient=Color3.fromRGB(50,35,55),   atmoColor=Color3.fromRGB(180,120,160),atmoDecay=Color3.fromRGB(80,40,80),  atmoGlare=1.0, atmoHaze=1.8,atmoDensity=0.3, contrast=0.25,saturation=0.4, tint=Color3.fromRGB(255,210,220),bloom=0.5, bloomSize=18,bloomThreshold=0.7, dofFar=0.3, sunRays=0.2 },
-    DAY      = {brightness=1.5, exposure=0.1,  shadow=0.3, ambient=Color3.fromRGB(50,50,60),   atmoColor=Color3.fromRGB(185,215,255),atmoDecay=Color3.fromRGB(110,120,140),atmoGlare=1.2, atmoHaze=1.2,atmoDensity=0.25,contrast=0.35,saturation=0.45,tint=Color3.fromRGB(255,235,200),bloom=0.35,bloomSize=16,bloomThreshold=0.85,dofFar=0.2, sunRays=0.25},
-    GOLDEN   = {brightness=2.2, exposure=0.2,  shadow=0.2, ambient=Color3.fromRGB(80,50,30),   atmoColor=Color3.fromRGB(255,130,50), atmoDecay=Color3.fromRGB(150,60,10), atmoGlare=2.0, atmoHaze=2.0,atmoDensity=0.35,contrast=0.35,saturation=0.7, tint=Color3.fromRGB(255,200,130),bloom=0.5, bloomSize=18,bloomThreshold=0.65,dofFar=0.4, sunRays=0.45},
-    NIGHT    = {brightness=1.8, exposure=0.18, shadow=0.25,ambient=Color3.fromRGB(20,28,55),   atmoColor=Color3.fromRGB(20,35,80),  atmoDecay=Color3.fromRGB(10,15,40),  atmoGlare=0.5, atmoHaze=1.5,atmoDensity=0.35,contrast=0.35,saturation=0.4, tint=Color3.fromRGB(200,220,255),bloom=1.0, bloomSize=22,bloomThreshold=0.4, dofFar=0.4, sunRays=0.1 },
-    RAIN     = {brightness=0.75,exposure=-0.1, shadow=0.5, ambient=Color3.fromRGB(38,43,55),   atmoColor=Color3.fromRGB(110,125,150),atmoDecay=Color3.fromRGB(55,62,78),  atmoGlare=0.15,atmoHaze=2.8,atmoDensity=0.45,contrast=0.08,saturation=-0.15,tint=Color3.fromRGB(190,208,232),bloom=0.3, bloomSize=12,bloomThreshold=0.9, dofFar=0.4, sunRays=0.0 },
-    HEAVENLY = {brightness=1.6, exposure=0.12, shadow=0.15,ambient=Color3.fromRGB(160,170,220),atmoColor=Color3.fromRGB(200,220,255),atmoDecay=Color3.fromRGB(160,185,240),atmoGlare=1.4, atmoHaze=1.0,atmoDensity=0.12,contrast=0.15,saturation=0.35,tint=Color3.fromRGB(240,238,220),bloom=0.55,bloomSize=20,bloomThreshold=0.6, dofFar=0.1, sunRays=0.35},
-    CINEMATIC= {brightness=0.9, exposure=-0.2, shadow=0.7, ambient=Color3.fromRGB(18,18,22),   atmoColor=Color3.fromRGB(60,60,80),  atmoDecay=Color3.fromRGB(20,20,30),  atmoGlare=0.0, atmoHaze=1.0,atmoDensity=0.3, contrast=0.6, saturation=-0.1,tint=Color3.fromRGB(200,210,230),bloom=0.08,bloomSize=8, bloomThreshold=0.98,dofFar=0.55,sunRays=0.05},
-    HORROR   = {brightness=0.4, exposure=-0.3, shadow=0.8, ambient=Color3.fromRGB(12,18,8),    atmoColor=Color3.fromRGB(30,45,20),  atmoDecay=Color3.fromRGB(8,14,5),    atmoGlare=0.0, atmoHaze=2.2,atmoDensity=0.38,contrast=0.5, saturation=-0.5,tint=Color3.fromRGB(140,180,120),bloom=0.1, bloomSize=8, bloomThreshold=0.95,dofFar=0.6, sunRays=0.0 },
-    FULLMOON = {brightness=1.4, exposure=0.1,  shadow=0.3, ambient=Color3.fromRGB(45,55,90),   atmoColor=Color3.fromRGB(30,40,80),  atmoDecay=Color3.fromRGB(15,20,50),  atmoGlare=0.3, atmoHaze=1.2,atmoDensity=0.25,contrast=0.2, saturation=0.15,tint=Color3.fromRGB(200,215,255),bloom=0.6, bloomSize=20,bloomThreshold=0.55,dofFar=0.3, sunRays=0.0 },
+    DAWN     = {brightness=1.6, exposure=0.15, shadow=0.2, ambient=Color3.fromRGB(50,35,55),   atmoColor=Color3.fromRGB(180,120,160),atmoDecay=Color3.fromRGB(80,40,80),  atmoGlare=1.0, atmoHaze=1.8, atmoDensity=0.3, contrast=0.25,saturation=0.4, tint=Color3.fromRGB(255,210,220),bloom=0.5, bloomSize=18,bloomThreshold=0.7, dofFar=0.3, sunRays=0.2 },
+    DAY      = {brightness=1.5, exposure=0.1,  shadow=0.3, ambient=Color3.fromRGB(50,50,60),   atmoColor=Color3.fromRGB(185,215,255),atmoDecay=Color3.fromRGB(110,120,140),atmoGlare=1.2, atmoHaze=1.2, atmoDensity=0.25,contrast=0.35,saturation=0.45,tint=Color3.fromRGB(255,235,200),bloom=0.35,bloomSize=16,bloomThreshold=0.85,dofFar=0.2, sunRays=0.25},
+    GOLDEN   = {brightness=2.2, exposure=0.2,  shadow=0.2, ambient=Color3.fromRGB(80,50,30),   atmoColor=Color3.fromRGB(255,130,50), atmoDecay=Color3.fromRGB(150,60,10), atmoGlare=2.0, atmoHaze=2.0, atmoDensity=0.35,contrast=0.35,saturation=0.7, tint=Color3.fromRGB(255,200,130),bloom=0.5, bloomSize=18,bloomThreshold=0.65,dofFar=0.4, sunRays=0.45},
+    NIGHT    = {brightness=1.8, exposure=0.18, shadow=0.25,ambient=Color3.fromRGB(20,28,55),   atmoColor=Color3.fromRGB(20,35,80),  atmoDecay=Color3.fromRGB(10,15,40),  atmoGlare=0.5, atmoHaze=1.5, atmoDensity=0.35,contrast=0.35,saturation=0.4, tint=Color3.fromRGB(200,220,255),bloom=1.0, bloomSize=22,bloomThreshold=0.4, dofFar=0.4, sunRays=0.1 },
+    RAIN     = {brightness=0.75,exposure=-0.1, shadow=0.5, ambient=Color3.fromRGB(38,43,55),   atmoColor=Color3.fromRGB(110,125,150),atmoDecay=Color3.fromRGB(55,62,78),  atmoGlare=0.15,atmoHaze=2.8, atmoDensity=0.45,contrast=0.08,saturation=-0.15,tint=Color3.fromRGB(190,208,232),bloom=0.3, bloomSize=12,bloomThreshold=0.9, dofFar=0.4, sunRays=0.0 },
+    HEAVENLY = {brightness=1.6, exposure=0.12, shadow=0.15,ambient=Color3.fromRGB(160,170,220),atmoColor=Color3.fromRGB(200,220,255),atmoDecay=Color3.fromRGB(160,185,240),atmoGlare=1.4, atmoHaze=1.0, atmoDensity=0.12,contrast=0.15,saturation=0.35,tint=Color3.fromRGB(240,238,220),bloom=0.55,bloomSize=20,bloomThreshold=0.6, dofFar=0.1, sunRays=0.35},
+    CINEMATIC= {brightness=0.9, exposure=-0.2, shadow=0.7, ambient=Color3.fromRGB(18,18,22),   atmoColor=Color3.fromRGB(60,60,80),  atmoDecay=Color3.fromRGB(20,20,30),  atmoGlare=0.0, atmoHaze=1.0, atmoDensity=0.3, contrast=0.6, saturation=-0.1,tint=Color3.fromRGB(200,210,230),bloom=0.08,bloomSize=8, bloomThreshold=0.98,dofFar=0.55,sunRays=0.05},
+    HORROR   = {brightness=0.4, exposure=-0.3, shadow=0.8, ambient=Color3.fromRGB(12,18,8),    atmoColor=Color3.fromRGB(30,45,20),  atmoDecay=Color3.fromRGB(8,14,5),    atmoGlare=0.0, atmoHaze=2.2, atmoDensity=0.38,contrast=0.5, saturation=-0.5,tint=Color3.fromRGB(140,180,120),bloom=0.1, bloomSize=8, bloomThreshold=0.95,dofFar=0.6, sunRays=0.0 },
+    FULLMOON = {brightness=1.4, exposure=0.1,  shadow=0.3, ambient=Color3.fromRGB(45,55,90),   atmoColor=Color3.fromRGB(30,40,80),  atmoDecay=Color3.fromRGB(15,20,50),  atmoGlare=0.3, atmoHaze=1.2, atmoDensity=0.25,contrast=0.2, saturation=0.15,tint=Color3.fromRGB(200,215,255),bloom=0.6, bloomSize=20,bloomThreshold=0.55,dofFar=0.3, sunRays=0.0 },
 }
 
 -- ================================================================
@@ -250,10 +257,15 @@ local function createRainParticles()
 end
 
 -- ================================================================
--- SECTION 9: SAKURA SYSTEM
+-- SECTION 9: SAKURA (สวยขึ้น นุ่มกว่าเดิม)
 -- ================================================================
 local sakuraFolder=nil local sakuraConns={} local sakuraParts={}
-local SAKURA_COLORS={Color3.fromRGB(255,182,210),Color3.fromRGB(255,200,220),Color3.fromRGB(255,160,195),Color3.fromRGB(255,210,225),Color3.fromRGB(240,150,180)}
+
+local SAKURA_COLORS={
+    Color3.fromRGB(255,192,215), Color3.fromRGB(255,210,228),
+    Color3.fromRGB(255,175,205), Color3.fromRGB(248,168,196),
+    Color3.fromRGB(255,220,235), Color3.fromRGB(240,155,185),
+}
 
 local function clearSakura()
     for _,c in pairs(sakuraConns) do pcall(function() c:Disconnect() end) end
@@ -267,27 +279,63 @@ local function createSakura()
     sakuraFolder=Instance.new("Folder",workspace) sakuraFolder.Name="StellarSakura"
     local cam=workspace.CurrentCamera
     local count=math.clamp(sakuraCount,10,120)
+
     for i=1,count do
-        local p=Instance.new("Part")
-        local sz=math.random(8,16)*0.1
-        p.Size=Vector3.new(sz,0.05,sz*0.7)
+        -- สลับ WedgePart และ Part ให้หลากหลาย
+        local p = (i%3~=0) and Instance.new("WedgePart") or Instance.new("Part")
+        local sz = math.random(14,26)*0.1
+        if p:IsA("WedgePart") then
+            p.Size=Vector3.new(sz*0.55, 0.04, sz)
+        else
+            p.Size=Vector3.new(sz, 0.04, sz*0.72)
+        end
         p.Material=Enum.Material.SmoothPlastic
         p.Color=SAKURA_COLORS[math.random(#SAKURA_COLORS)]
-        p.Transparency=math.random(10,30)/100 p.Reflectance=0.15
+        p.Transparency=math.random(5,18)/100
+        p.Reflectance=0.06
         p.CastShadow=false p.Anchored=true p.CanCollide=false p.Parent=sakuraFolder
-        table.insert(sakuraParts,{part=p,phase=math.random()*math.pi*2,swayX=(math.random()-0.5)*22,swayZ=(math.random()-0.5)*22,speed=math.random(4,9)*0.1,rot=math.random()*math.pi*2,rotSpd=(math.random()-0.5)*3,drift=(math.random()-0.5)*0.8})
+
+        table.insert(sakuraParts,{
+            part    = p,
+            phase   = math.random()*math.pi*2,
+            offsetX = (math.random()-0.5)*44,
+            offsetZ = (math.random()-0.5)*44,
+            fallSpd = math.random(22,48)*0.01,
+            fallOff = math.random()*28,
+            swayAmp = math.random(18,38)*0.1,
+            swayFrq = math.random(6,14)*0.1,
+            swayPhs = math.random()*math.pi*2,
+            swayFrqZ= math.random(5,11)*0.1,
+            rotY    = math.random()*math.pi*2,
+            rotSpd  = (math.random()-0.5)*1.6,
+            tiltAmp = math.random(18,42)*0.01,
+            tiltPhs = math.random()*math.pi*2,
+            tiltFrq = math.random(8,16)*0.1,
+        })
     end
-    local frame=0
+
     local conn=RunService.Heartbeat:Connect(function()
-        frame=frame+1 if frame%2~=0 then return end
         if not sakuraFolder or not sakuraFolder.Parent then return end
-        local cp=cam.CFrame.Position local t=tick()
+        local cp=cam.CFrame.Position
+        local t=tick()
         for _,d in ipairs(sakuraParts) do
             if d.part and d.part.Parent then
-                local fall=(t*d.speed+d.phase*3)%28
-                local sway=math.sin(t*0.8+d.phase)*3.5
-                local swayZ=math.cos(t*0.6+d.phase)*2.5
-                d.part.CFrame=CFrame.new(cp.X+d.swayX+sway,cp.Y+16-fall,cp.Z+d.swayZ+swayZ)*CFrame.Angles(math.sin(t*1.2+d.phase)*0.4,d.rot+t*d.rotSpd,math.cos(t*0.9+d.phase)*0.3)
+                -- หล่นช้านุ่มนวล
+                local fall = (t*d.fallSpd + d.fallOff) % 26
+                -- แกว่งซ้ายขวาต่างความถี่
+                local swayX = math.sin(t*d.swayFrq  + d.swayPhs) * d.swayAmp
+                local swayZ = math.cos(t*d.swayFrqZ + d.swayPhs) * d.swayAmp * 0.6
+                -- tilt หน้าหลัง
+                local tiltX = math.sin(t*d.tiltFrq + d.tiltPhs) * d.tiltAmp
+                local tiltZ = math.cos(t*d.tiltFrq*0.7 + d.tiltPhs) * d.tiltAmp * 0.5
+                -- หมุนรอบ Y ช้าๆ
+                local rotY = d.rotY + t*d.rotSpd
+
+                d.part.CFrame = CFrame.new(
+                    cp.X + d.offsetX + swayX,
+                    cp.Y + 18 - fall,
+                    cp.Z + d.offsetZ + swayZ
+                ) * CFrame.Angles(tiltX, rotY, tiltZ)
             end
         end
     end)
@@ -302,7 +350,9 @@ local windConns={} local windParts={}
 local function clearWind()
     for _,c in pairs(windConns) do pcall(function() c:Disconnect() end) end
     windConns={}
-    for _,d in pairs(windParts) do pcall(function() if d.part and d.part.Parent then d.part.CFrame=d.origin end end) end
+    for _,d in pairs(windParts) do
+        pcall(function() if d.part and d.part.Parent then d.part.CFrame=d.origin end end)
+    end
     windParts={}
 end
 
@@ -313,8 +363,16 @@ local function startWind()
         pcall(function()
             if (v:IsA("BasePart") or v:IsA("MeshPart")) and v.Anchored then
                 local sz=v.Size
-                if sz.X<4 and sz.Z<4 and sz.Y<12 and (v.Position-cam.CFrame.Position).Magnitude<150 then
-                    table.insert(windParts,{part=v,origin=v.CFrame,phase=math.random()*math.pi*2,freq=0.8+math.random()*0.8,amp=0.012+math.random()*0.018})
+                if sz.X<4 and sz.Z<4 and sz.Y<12
+                    and (v.Position-cam.CFrame.Position).Magnitude<150
+                    and v.Parent and v.Parent.Name~="StellarRain"
+                    and v.Parent.Name~="StellarSakura" then
+                    table.insert(windParts,{
+                        part=v, origin=v.CFrame,
+                        phase=math.random()*math.pi*2,
+                        freq=0.8+math.random()*0.8,
+                        amp=0.012+math.random()*0.018,
+                    })
                 end
             end
         end)
@@ -361,7 +419,6 @@ local function applyPBROnPart(v)
     if not pbrEnabled or isFpsBoostOn then return end
     if not v or not v.Parent then return end
     if not (v:IsA("BasePart") or v:IsA("MeshPart")) then return end
-    -- [FIX] ข้าม rain/sakura parts
     if v.Parent and (v.Parent.Name=="StellarRain" or v.Parent.Name=="StellarSakura") then return end
     v.CastShadow=true
     local m=v.Material local r=0
@@ -463,7 +520,6 @@ local function spring(btn)
     end)
 end
 
--- [NEW] กดค้าง = ลูกบอล bounce เด้งขึ้น
 local function addBounceOnHold(frame)
     local holdThread=nil
     frame.InputBegan:Connect(function(input)
@@ -473,9 +529,9 @@ local function addBounceOnHold(frame)
                 pcall(function()
                     local us=frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",frame)
                     us.Scale=1
-                    TweenService:Create(us,TweenInfo.new(0.12,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Scale=1.12}):Play()
+                    TweenService:Create(us,TweenInfo.new(0.12,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Scale=1.14}):Play()
                     task.wait(0.12)
-                    TweenService:Create(us,TweenInfo.new(0.22,Enum.EasingStyle.Bounce,Enum.EasingDirection.Out),{Scale=1.0}):Play()
+                    TweenService:Create(us,TweenInfo.new(0.28,Enum.EasingStyle.Bounce,Enum.EasingDirection.Out),{Scale=1.0}):Play()
                 end)
                 holdThread=nil
             end)
@@ -489,7 +545,7 @@ local function addBounceOnHold(frame)
 end
 
 -- ================================================================
--- SECTION 15: MAIN FRAME (UI สวยขึ้น)
+-- SECTION 15: MAIN FRAME
 -- ================================================================
 local MainFrame=Instance.new("Frame",ScreenGui)
 MainFrame.Size=UDim2.new(0,332,0,272)
@@ -499,7 +555,6 @@ MainFrame.BackgroundTransparency=0.28
 MainFrame.BorderSizePixel=0 MainFrame.Active=true MainFrame.ClipsDescendants=true
 Instance.new("UICorner",MainFrame).CornerRadius=UDim.new(0,16)
 
--- inner shadow top
 local InnerShadow=Instance.new("Frame",MainFrame)
 InnerShadow.Size=UDim2.new(1,0,0,60) InnerShadow.Position=UDim2.new(0,0,0,0)
 InnerShadow.BorderSizePixel=0 InnerShadow.ZIndex=0
@@ -508,12 +563,15 @@ isg.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,
 isg.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.92),NumberSequenceKeypoint.new(1,1)})
 isg.Rotation=90
 
--- shimmer
 local GlassShimmer=Instance.new("Frame",MainFrame)
 GlassShimmer.Size=UDim2.new(1.5,0,0,2) GlassShimmer.Position=UDim2.new(-0.25,0,0,1)
 GlassShimmer.BorderSizePixel=0 GlassShimmer.ZIndex=3
 local ShimGrad=Instance.new("UIGradient",GlassShimmer)
-ShimGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(150,220,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,255,255))})
+ShimGrad.Color=ColorSequence.new({
+    ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),
+    ColorSequenceKeypoint.new(0.5,Color3.fromRGB(150,220,255)),
+    ColorSequenceKeypoint.new(1,Color3.fromRGB(255,255,255)),
+})
 task.spawn(function()
     while task.wait(0.05) do
         if not MainFrame or not MainFrame.Parent then break end
@@ -554,7 +612,6 @@ addBounceOnHold(MainFrame)
 local TitleBar=Instance.new("Frame",MainFrame)
 TitleBar.Size=UDim2.new(1,0,0,36) TitleBar.BackgroundTransparency=1 TitleBar.ZIndex=5
 
--- title bar separator
 local TitleSep=Instance.new("Frame",TitleBar)
 TitleSep.Size=UDim2.new(1,0,0,1) TitleSep.Position=UDim2.new(0,0,1,-1)
 TitleSep.BorderSizePixel=0 TitleSep.ZIndex=5
@@ -695,7 +752,9 @@ MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
         dragToggle=true dragStart=input.Position startPos=MainFrame.Position
         input.Changed:Connect(function()
-            if input.UserInputState==Enum.UserInputState.End then dragToggle=false isDragging=false isDraggingMainFrame=false end
+            if input.UserInputState==Enum.UserInputState.End then
+                dragToggle=false isDragging=false isDraggingMainFrame=false
+            end
         end)
     end
 end)
@@ -717,14 +776,18 @@ local isMinimized=false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized=not isMinimized
     if isMinimized then
-        TitleLabel.Visible=false Sidebar.Visible=false ContentArea.Visible=false SidebarLine.Visible=false TitleSep.Visible=false MinBtn.Text="+"
+        TitleLabel.Visible=false Sidebar.Visible=false ContentArea.Visible=false
+        SidebarLine.Visible=false TitleSep.Visible=false MinBtn.Text="+"
         pcall(function() MainFrame:TweenSize(UDim2.new(0,68,0,28),Enum.EasingDirection.Out,Enum.EasingStyle.Back,0.32,true) end)
         MinBtn.Position=UDim2.new(1,-24,0.5,-11)
     else
         MinBtn.Text="-"
         pcall(function() MainFrame:TweenSize(UDim2.new(0,332,0,272),Enum.EasingDirection.Out,Enum.EasingStyle.Back,0.4,true) end)
         MinBtn.Position=UDim2.new(1,-32,0.5,-13)
-        task.delay(0.18,function() Sidebar.Visible=true ContentArea.Visible=true TitleLabel.Visible=true SidebarLine.Visible=true TitleSep.Visible=true end)
+        task.delay(0.18,function()
+            Sidebar.Visible=true ContentArea.Visible=true TitleLabel.Visible=true
+            SidebarLine.Visible=true TitleSep.Visible=true
+        end)
     end
 end)
 
@@ -764,9 +827,11 @@ local function autoCanvas(scroll,n,h,gap,pad)
 end
 
 -- ================================================================
--- SECTION 23: BALL SLIDER HELPER
--- [NEW] ลูกบอลกลิ้ง + ขีดเบ้กขาว + สีไล่จากขาว→ธีม
+-- SECTION 23: BALL SLIDER
+-- [FIX] 2 สีผสมกัน (ขาว+สีธีม) + track เปลี่ยนตามธีม
 -- ================================================================
+local allSliderBalls = {}  -- เก็บ ref ทั้งหมดเพื่ออัปเดตสีเมื่อเปลี่ยน theme
+
 local function makeBallSlider(parent, yPos, labelText, defRel, changeFn)
     local theme = COLOR_THEMES[currentThemeIndex]
 
@@ -777,8 +842,6 @@ local function makeBallSlider(parent, yPos, labelText, defRel, changeFn)
     container.BackgroundTransparency=0.38
     container.BorderSizePixel=0
     Instance.new("UICorner",container).CornerRadius=UDim.new(0,9)
-
-    -- inner border glow
     local cstroke=Instance.new("UIStroke",container)
     cstroke.Thickness=1 cstroke.Color=Color3.fromRGB(70,55,100) cstroke.Transparency=0.5
 
@@ -794,43 +857,58 @@ local function makeBallSlider(parent, yPos, labelText, defRel, changeFn)
     valLbl.TextColor3=theme.secondary valLbl.TextSize=10
     valLbl.Font=Enum.Font.Code valLbl.TextXAlignment=Enum.TextXAlignment.Right
 
-    -- track
     local track=Instance.new("Frame",container)
     track.Size=UDim2.new(1,-20,0,8) track.Position=UDim2.new(0,10,0,27)
     track.BackgroundColor3=Color3.fromRGB(20,16,32) track.BackgroundTransparency=0.2 track.BorderSizePixel=0
     Instance.new("UICorner",track).CornerRadius=UDim.new(0,4)
 
-    -- tick marks (ขีดเบ้กสีขาวเข้มกว่าลูก)
+    -- ขีดเบ้ก
     local TICK_COUNT=8
-    for t=0,TICK_COUNT do
+    for ti=0,TICK_COUNT do
         local tick=Instance.new("Frame",track)
-        tick.Size=UDim2.new(0,1,t%2==0 and 0.7 or 0.45,0) tick.Position=UDim2.new(t/TICK_COUNT,-0,t%2==0 and 0.15 or 0.27,0)
-        tick.BackgroundColor3=Color3.fromRGB(200,200,210) tick.BackgroundTransparency=t%2==0 and 0.35 or 0.6 tick.BorderSizePixel=0
+        tick.Size=UDim2.new(0,1,ti%2==0 and 0.7 or 0.45,0)
+        tick.Position=UDim2.new(ti/TICK_COUNT,0,ti%2==0 and 0.15 or 0.27,0)
+        tick.BackgroundColor3=Color3.fromRGB(200,200,210)
+        tick.BackgroundTransparency=ti%2==0 and 0.35 or 0.6
+        tick.BorderSizePixel=0
     end
 
-    -- fill gradient: ซ้ายขาว/อ่อน → ขวาสีธีม
+    -- fill: ซ้ายขาวนวล → ขวาสีธีม
     local fill=Instance.new("Frame",track)
     fill.Size=UDim2.new(defRel,0,1,0) fill.BackgroundColor3=Color3.fromRGB(255,255,255) fill.BorderSizePixel=0
     Instance.new("UICorner",fill).CornerRadius=UDim.new(0,4)
     local fillGrad=Instance.new("UIGradient",fill)
     fillGrad.Color=ColorSequence.new({
-        ColorSequenceKeypoint.new(0,Color3.fromRGB(235,235,240)),  -- ซ้าย: ขาวนวล
-        ColorSequenceKeypoint.new(1,theme.primary),                 -- ขวา: สีธีม
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(232,232,238)),
+        ColorSequenceKeypoint.new(1, theme.primary),
     })
 
-    -- [NEW] ลูกบอล: สีขาว กลม มี stroke สีเข้มกว่า
+    -- [FIX] ลูกบอล 2 สีผสม: ซ้ายขาว ขวาสีธีม (gradient บน ball)
     local ball=Instance.new("TextButton",track)
     ball.Size=UDim2.new(0,20,0,20) ball.Position=UDim2.new(defRel,-10,0.5,-10)
-    ball.BackgroundColor3=Color3.fromRGB(245,245,252)
+    -- สีพื้นเป็น blend ระหว่างขาวกับ ball color
+    ball.BackgroundColor3=lerpC(Color3.fromRGB(240,240,248), theme.ball, 0.45)
     ball.Text="" ball.BorderSizePixel=0 ball.ZIndex=6
     Instance.new("UICorner",ball).CornerRadius=UDim.new(1,0)
+    -- gradient บนลูกบอล
+    local ballGrad=Instance.new("UIGradient",ball)
+    ballGrad.Color=ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(248,248,255)),  -- บน: ขาว
+        ColorSequenceKeypoint.new(1, theme.ball),                    -- ล่าง: สีธีม
+    })
+    ballGrad.Rotation=135
     -- stroke เข้มกว่าลูก
     local ballStroke=Instance.new("UIStroke",ball)
-    ballStroke.Color=Color3.fromRGB(130,100,180) ballStroke.Thickness=2.5
+    ballStroke.Color=lerpC(theme.primary, Color3.fromRGB(80,60,120), 0.4)
+    ballStroke.Thickness=2.2
     spring(ball)
     addBounceOnHold(ball)
 
-    -- drag: กลิ้ง + apply ทันที + ป้องกัน MainFrame drag
+    -- เก็บ ref สำหรับอัปเดตธีม
+    local sliderRef = {fill=fill, fillGrad=fillGrad, ball=ball, ballGrad=ballGrad, ballStroke=ballStroke, valLbl=valLbl}
+    table.insert(allSliderBalls, sliderRef)
+
+    -- drag
     local dragging=false
     local lastRel=defRel
 
@@ -854,29 +932,47 @@ local function makeBallSlider(parent, yPos, labelText, defRel, changeFn)
         if isDraggingMainFrame then dragging=false return end
         if i.UserInputType~=Enum.UserInputType.MouseMovement and i.UserInputType~=Enum.UserInputType.Touch then return end
         local rel=math.clamp((i.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
-        if math.abs(rel-lastRel)<0.002 then return end -- skip ถ้าเปลี่ยนน้อยมาก
+        if math.abs(rel-lastRel)<0.002 then return end
 
-        -- [NEW] animation กลิ้ง: หมุนลูกบอลตามทิศทางลาก
-        local dir=(rel-lastRel)
-        local rollDeg=dir*360*2
-        pcall(function()
-            local us=ball:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",ball)
-            TweenService:Create(ball,TweenInfo.new(0.06,Enum.EasingStyle.Linear),{Rotation=ball.Rotation+rollDeg}):Play()
-        end)
+        -- กลิ้ง
+        local dir=rel-lastRel
+        pcall(function() ball.Rotation=ball.Rotation+dir*360*2 end)
 
         lastRel=rel
         fill.Size=UDim2.new(rel,0,1,0)
         ball.Position=UDim2.new(rel,-10,0.5,-10)
         valLbl.Text=math.floor(rel*100).."%"
-        -- fill gradient สีเปลี่ยนตามค่า
+
+        -- fill gradient ไล่ถึง current value
+        local curTheme=COLOR_THEMES[currentThemeIndex]
         fillGrad.Color=ColorSequence.new({
-            ColorSequenceKeypoint.new(0,Color3.fromRGB(235,235,240)),
-            ColorSequenceKeypoint.new(1,lerpC(Color3.fromRGB(200,200,210),theme.primary,rel)),
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(232,232,238)),
+            ColorSequenceKeypoint.new(1, lerpC(Color3.fromRGB(180,180,190), curTheme.primary, rel)),
         })
         pcall(function() changeFn(rel) end)
     end)
 
     return container, fill, ball, valLbl
+end
+
+-- ฟังก์ชันอัปเดตสี slider ทั้งหมดเมื่อเปลี่ยน theme
+local function refreshAllSliders()
+    local theme=COLOR_THEMES[currentThemeIndex]
+    for _,s in ipairs(allSliderBalls) do
+        pcall(function()
+            s.fillGrad.Color=ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(232,232,238)),
+                ColorSequenceKeypoint.new(1, theme.primary),
+            })
+            s.ball.BackgroundColor3=lerpC(Color3.fromRGB(240,240,248), theme.ball, 0.45)
+            s.ballGrad.Color=ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(248,248,255)),
+                ColorSequenceKeypoint.new(1, theme.ball),
+            })
+            s.ballStroke.Color=lerpC(theme.primary, Color3.fromRGB(80,60,120), 0.4)
+            s.valLbl.TextColor3=theme.secondary
+        end)
+    end
 end
 
 -- ================================================================
@@ -948,13 +1044,19 @@ autoCanvas(TabGfx,8,30,6,32)
 
 -- ================================================================
 -- SECTION 25: SKYBOX TAB
--- [FIX] ใช้ array แทน pairs ของ dict ให้ลำดับคงที่ + pcall ทุก property
+-- [FIX] array ลำดับชัด + force destroy Sky เดิมก่อน apply
 -- ================================================================
 local function applySkyPreset(preset)
-    -- [FIX] pcall แยกทุก property ป้องกัน Sky tab กดไม่ติดบางแมพ
     pcall(function()
-        local sky=Lighting:FindFirstChild("StellarSky")
-        if not sky then sky=Instance.new("Sky",Lighting) sky.Name="StellarSky" end
+        -- [FIX] ลบ Sky เดิมทั้งหมดใน Lighting ก่อนเสมอ
+        for _,child in ipairs(Lighting:GetChildren()) do
+            if child:IsA("Sky") then
+                pcall(function() child:Destroy() end)
+            end
+        end
+        task.wait(0.05)
+        local sky=Instance.new("Sky",Lighting)
+        sky.Name="StellarSky"
         pcall(function() sky.SkyboxBk=preset.bk end)
         pcall(function() sky.SkyboxDn=preset.dn end)
         pcall(function() sky.SkyboxFt=preset.ft end)
@@ -962,6 +1064,7 @@ local function applySkyPreset(preset)
         pcall(function() sky.SkyboxRt=preset.rt end)
         pcall(function() sky.SkyboxUp=preset.up end)
         pcall(function() sky.StarCount=preset.star end)
+        pcall(function() sky.CelestialBodiesShown=true end)
         pcall(function() if preset.moonSize then sky.MoonAngularSize=preset.moonSize end end)
         pcall(function() if not heavenlyEnabled then Lighting.ClockTime=preset.time end end)
         pcall(function() if preset.brightness then Lighting.Brightness=preset.brightness end end)
@@ -977,8 +1080,15 @@ ResetSkyBtn.Font=Enum.Font.SourceSansBold ResetSkyBtn.TextSize=11
 Instance.new("UICorner",ResetSkyBtn).CornerRadius=UDim.new(0,7) spring(ResetSkyBtn)
 ResetSkyBtn.MouseButton1Click:Connect(function()
     pcall(function()
-        local sky=Lighting:FindFirstChild("StellarSky")
-        if sky then pcall(function() sky.MoonAngularSize=11 end) pcall(function() sky.StarCount=8000 end) end
+        for _,child in ipairs(Lighting:GetChildren()) do
+            if child:IsA("Sky") then pcall(function() child:Destroy() end) end
+        end
+        task.wait(0.05)
+        local sky=Instance.new("Sky",Lighting)
+        sky.Name="StellarSky"
+        sky.SunTextureId="rbxassetid://1079349813" sky.SunAngularSize=21
+        sky.MoonTextureId="rbxassetid://6444320592" sky.MoonAngularSize=11
+        sky.StarCount=8000 sky.CelestialBodiesShown=true
         resetFogLighting()
     end)
 end)
@@ -986,27 +1096,27 @@ end)
 for i,preset in ipairs(SKY_PRESETS) do
     local SkyBtn=Instance.new("TextButton",TabSky)
     SkyBtn.Size=UDim2.new(1,-16,0,28) SkyBtn.Position=UDim2.new(0,8,0,i*34+4)
-    SkyBtn.BackgroundColor3=Color3.fromRGB(26,20,40) SkyBtn.BackgroundTransparency=0.3
+    SkyBtn.BackgroundColor3=Color3.fromRGB(26,20,40) SkyBtn.BackgroundTransparency=0.28
     SkyBtn.Text=preset.name SkyBtn.TextColor3=Color3.fromRGB(232,232,255)
     SkyBtn.Font=Enum.Font.SourceSans SkyBtn.TextSize=12
     Instance.new("UICorner",SkyBtn).CornerRadius=UDim.new(0,7)
     local sk=Instance.new("UIStroke",SkyBtn) sk.Color=Color3.fromRGB(85,62,115) sk.Thickness=1
     spring(SkyBtn)
-    local _preset=preset -- closure
-    SkyBtn.MouseButton1Click:Connect(function() applySkyPreset(_preset) end)
+    local _p=preset
+    SkyBtn.MouseButton1Click:Connect(function() applySkyPreset(_p) end)
 end
 
 local skyBotY=(#SKY_PRESETS+1)*34+10
 local InputField=Instance.new("TextBox",TabSky)
 InputField.Size=UDim2.new(1,-16,0,28) InputField.Position=UDim2.new(0,8,0,skyBotY)
-InputField.BackgroundColor3=Color3.fromRGB(16,12,26) InputField.BackgroundTransparency=0.3
+InputField.BackgroundColor3=Color3.fromRGB(16,12,26) InputField.BackgroundTransparency=0.28
 InputField.PlaceholderText="Asset ID หรือ rbxassetid://..." InputField.Text=""
 InputField.TextColor3=Color3.fromRGB(0,220,255) InputField.Font=Enum.Font.Code InputField.TextSize=11
 Instance.new("UICorner",InputField).CornerRadius=UDim.new(0,7)
 
 local ApplyCustomBtn=Instance.new("TextButton",TabSky)
 ApplyCustomBtn.Size=UDim2.new(1,-16,0,28) ApplyCustomBtn.Position=UDim2.new(0,8,0,skyBotY+34)
-ApplyCustomBtn.BackgroundColor3=Color3.fromRGB(180,0,255) ApplyCustomBtn.BackgroundTransparency=0.22
+ApplyCustomBtn.BackgroundColor3=Color3.fromRGB(180,0,255) ApplyCustomBtn.BackgroundTransparency=0.2
 ApplyCustomBtn.Text="✦ Apply Custom ID" ApplyCustomBtn.TextColor3=Color3.fromRGB(255,255,255)
 ApplyCustomBtn.Font=Enum.Font.SourceSansBold ApplyCustomBtn.TextSize=12
 Instance.new("UICorner",ApplyCustomBtn).CornerRadius=UDim.new(0,7) spring(ApplyCustomBtn)
@@ -1069,11 +1179,18 @@ local function applyTheme(index)
     local theme=COLOR_THEMES[index] currentThemeIndex=index
     activeThemeLabel.Text="Active: "..theme.name activeThemeLabel.TextColor3=theme.primary
     pcall(function()
-        UIGradientStroke.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,theme.primary),ColorSequenceKeypoint.new(0.5,theme.secondary),ColorSequenceKeypoint.new(1,theme.primary)})
+        UIGradientStroke.Color=ColorSequence.new({
+            ColorSequenceKeypoint.new(0,theme.primary),
+            ColorSequenceKeypoint.new(0.5,theme.secondary),
+            ColorSequenceKeypoint.new(1,theme.primary),
+        })
     end)
     refreshTabButtons()
+    -- [FIX] อัปเดต slider สีทั้งหมด
+    refreshAllSliders()
     pcall(function() TweenService:Create(MinBtn,TweenInfo.new(0.28),{TextColor3=theme.secondary}):Play() end)
     BorderColorNow=theme.primary
+
     if theme.glass then
         GlassRefraction.Visible=true GlassHighlight.Visible=true
         MainFrame.BackgroundColor3=Color3.fromRGB(7,13,20) MainFrame.BackgroundTransparency=0.15
@@ -1085,7 +1202,11 @@ local function applyTheme(index)
                     UIGradientStroke.Rotation=(tick()*16)%360
                     local h=((tick()*20)%360)/360
                     local c=Color3.fromHSV(h,0.28,1)
-                    UIGradientStroke.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(200,235,255)),ColorSequenceKeypoint.new(0.5,c),ColorSequenceKeypoint.new(1,Color3.fromRGB(180,220,255))})
+                    UIGradientStroke.Color=ColorSequence.new({
+                        ColorSequenceKeypoint.new(0,Color3.fromRGB(200,235,255)),
+                        ColorSequenceKeypoint.new(0.5,c),
+                        ColorSequenceKeypoint.new(1,Color3.fromRGB(180,220,255)),
+                    })
                 end)
                 task.wait(0.05)
             end
@@ -1096,7 +1217,11 @@ local function applyTheme(index)
         MainFrame.BackgroundColor3=Color3.fromRGB(9,7,15) MainFrame.BackgroundTransparency=0.28
         UIStroke.Thickness=1.6 UIGradientStroke.Rotation=0
         SidebarLine.BackgroundColor3=Color3.fromRGB(60,40,90)
-        UIGradientStroke.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,theme.primary),ColorSequenceKeypoint.new(0.5,theme.secondary),ColorSequenceKeypoint.new(1,theme.primary)})
+        UIGradientStroke.Color=ColorSequence.new({
+            ColorSequenceKeypoint.new(0,theme.primary),
+            ColorSequenceKeypoint.new(0.5,theme.secondary),
+            ColorSequenceKeypoint.new(1,theme.primary),
+        })
     end
 end
 
@@ -1117,7 +1242,7 @@ end
 autoCanvas(TabTheme,#COLOR_THEMES,27,5,52)
 
 -- ================================================================
--- SECTION 28: FPS CAP TAB (ใช้ ball slider ด้วย)
+-- SECTION 28: FPS CAP TAB (ball slider)
 -- ================================================================
 local FPSTitle=Instance.new("TextLabel",TabFPS)
 FPSTitle.Size=UDim2.new(1,-16,0,16) FPSTitle.Position=UDim2.new(0,8,0,4)
@@ -1133,16 +1258,10 @@ FPSValueLabel.TextSize=12 FPSValueLabel.Font=Enum.Font.Code FPSValueLabel.TextXA
 Instance.new("UICorner",FPSValueLabel).CornerRadius=UDim.new(0,7)
 
 local FPS_MIN,FPS_MAX=10,120
-local function setFpsCapFromRel(rel)
-    local fps=math.clamp(math.round(FPS_MIN+rel*(FPS_MAX-FPS_MIN)),FPS_MIN,FPS_MAX)
-    targetFpsCap=fps
-    FPSValueLabel.Text="Cap: "..fps.." FPS"
-    pcall(function() if setfpscap then setfpscap(fps) end end)
-end
-
--- ball slider สำหรับ FPS
 makeBallSlider(TabFPS, 50, "FPS Cap (10-120)", 0.45, function(r)
-    setFpsCapFromRel(r)
+    targetFpsCap=math.clamp(math.round(FPS_MIN+r*(FPS_MAX-FPS_MIN)),FPS_MIN,FPS_MAX)
+    FPSValueLabel.Text="Cap: "..targetFpsCap.." FPS"
+    pcall(function() if setfpscap then setfpscap(targetFpsCap) end end)
 end)
 
 local presets={10,30,45,60,90,120,165}
@@ -1171,7 +1290,7 @@ Instance.new("UICorner",ShowFPSPopupBtn).CornerRadius=UDim.new(0,7) spring(ShowF
 TabFPS.CanvasSize=UDim2.new(0,0,0,170)
 
 -- ================================================================
--- SECTION 29: CINEMATIC TAB (ball sliders ทั้งหมด)
+-- SECTION 29: CINEMATIC TAB (ball sliders)
 -- ================================================================
 local CinTitle=Instance.new("TextLabel",TabCinema)
 CinTitle.Size=UDim2.new(1,-16,0,16) CinTitle.Position=UDim2.new(0,8,0,4)
@@ -1225,10 +1344,12 @@ FPSPopup.BorderSizePixel=0 FPSPopup.ClipsDescendants=true FPSPopup.Visible=false
 Instance.new("UICorner",FPSPopup).CornerRadius=UDim.new(0,12)
 
 local FPSPopupStroke=Instance.new("UIStroke",FPSPopup)
-FPSPopupStroke.Thickness=1.5 FPSPopupStroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border FPSPopupStroke.Color=Color3.fromRGB(0,180,255)
+FPSPopupStroke.Thickness=1.5 FPSPopupStroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+FPSPopupStroke.Color=Color3.fromRGB(0,180,255)
 
 local PopupShim=Instance.new("Frame",FPSPopup)
-PopupShim.Size=UDim2.new(1.5,0,0,1.5) PopupShim.Position=UDim2.new(-0.25,0,0,0) PopupShim.BorderSizePixel=0 PopupShim.ZIndex=21
+PopupShim.Size=UDim2.new(1.5,0,0,1.5) PopupShim.Position=UDim2.new(-0.25,0,0,0)
+PopupShim.BorderSizePixel=0 PopupShim.ZIndex=21
 local PopupShimGrad=Instance.new("UIGradient",PopupShim)
 PopupShimGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(100,200,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,255,255))})
 task.spawn(function()
@@ -1239,12 +1360,14 @@ task.spawn(function()
 end)
 
 local PopupHeader=Instance.new("Frame",FPSPopup)
-PopupHeader.Size=UDim2.new(1,0,0,19) PopupHeader.BackgroundColor3=Color3.fromRGB(10,8,22) PopupHeader.BackgroundTransparency=0.3 PopupHeader.BorderSizePixel=0 PopupHeader.ZIndex=21
+PopupHeader.Size=UDim2.new(1,0,0,19) PopupHeader.BackgroundColor3=Color3.fromRGB(10,8,22)
+PopupHeader.BackgroundTransparency=0.3 PopupHeader.BorderSizePixel=0 PopupHeader.ZIndex=21
 
 local PopupTitle=Instance.new("TextLabel",PopupHeader)
 PopupTitle.Size=UDim2.new(1,-22,1,0) PopupTitle.Position=UDim2.new(0,7,0,0)
 PopupTitle.BackgroundTransparency=1 PopupTitle.Text="FPS Monitor"
-PopupTitle.TextColor3=Color3.fromRGB(0,220,255) PopupTitle.TextSize=9 PopupTitle.Font=Enum.Font.Code PopupTitle.TextXAlignment=Enum.TextXAlignment.Left PopupTitle.ZIndex=22
+PopupTitle.TextColor3=Color3.fromRGB(0,220,255) PopupTitle.TextSize=9
+PopupTitle.Font=Enum.Font.Code PopupTitle.TextXAlignment=Enum.TextXAlignment.Left PopupTitle.ZIndex=22
 
 local PopupCloseBtn=Instance.new("TextButton",PopupHeader)
 PopupCloseBtn.Size=UDim2.new(0,16,0,16) PopupCloseBtn.Position=UDim2.new(1,-18,0.5,-8)
@@ -1261,17 +1384,20 @@ PopupFPSBig.Font=Enum.Font.Code PopupFPSBig.TextXAlignment=Enum.TextXAlignment.C
 
 local PopupBottomBar=Instance.new("Frame",FPSPopup)
 PopupBottomBar.Size=UDim2.new(1,0,0,12) PopupBottomBar.Position=UDim2.new(0,0,1,-12)
-PopupBottomBar.BackgroundColor3=Color3.fromRGB(8,6,18) PopupBottomBar.BackgroundTransparency=0.38 PopupBottomBar.BorderSizePixel=0 PopupBottomBar.ZIndex=22
+PopupBottomBar.BackgroundColor3=Color3.fromRGB(8,6,18) PopupBottomBar.BackgroundTransparency=0.38
+PopupBottomBar.BorderSizePixel=0 PopupBottomBar.ZIndex=22
 
 local PopupCapLabel=Instance.new("TextLabel",PopupBottomBar)
 PopupCapLabel.Size=UDim2.new(0.5,0,1,0) PopupCapLabel.Position=UDim2.new(0,4,0,0)
 PopupCapLabel.BackgroundTransparency=1 PopupCapLabel.Text="cap:60"
-PopupCapLabel.TextColor3=Color3.fromRGB(140,0,200) PopupCapLabel.TextSize=8 PopupCapLabel.Font=Enum.Font.Code PopupCapLabel.TextXAlignment=Enum.TextXAlignment.Left PopupCapLabel.ZIndex=23
+PopupCapLabel.TextColor3=Color3.fromRGB(140,0,200) PopupCapLabel.TextSize=8
+PopupCapLabel.Font=Enum.Font.Code PopupCapLabel.TextXAlignment=Enum.TextXAlignment.Left PopupCapLabel.ZIndex=23
 
 local PopupStatusLabel=Instance.new("TextLabel",PopupBottomBar)
 PopupStatusLabel.Size=UDim2.new(0.5,0,1,0) PopupStatusLabel.Position=UDim2.new(0.5,0,0,0)
 PopupStatusLabel.BackgroundTransparency=1 PopupStatusLabel.Text="normal"
-PopupStatusLabel.TextColor3=Color3.fromRGB(100,200,150) PopupStatusLabel.TextSize=8 PopupStatusLabel.Font=Enum.Font.Code PopupStatusLabel.TextXAlignment=Enum.TextXAlignment.Right PopupStatusLabel.ZIndex=23
+PopupStatusLabel.TextColor3=Color3.fromRGB(100,200,150) PopupStatusLabel.TextSize=8
+PopupStatusLabel.Font=Enum.Font.Code PopupStatusLabel.TextXAlignment=Enum.TextXAlignment.Right PopupStatusLabel.ZIndex=23
 
 addBounceOnHold(FPSPopup)
 
@@ -1405,7 +1531,11 @@ RunService.RenderStepped:Connect(function(dt)
         local col=Color3.fromHSV(rainbowHue/360,1,1)
         local col2=Color3.fromHSV(((rainbowHue+120)%360)/360,1,1)
         pcall(function()
-            UIGradientStroke.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,col),ColorSequenceKeypoint.new(0.5,col2),ColorSequenceKeypoint.new(1,col)})
+            UIGradientStroke.Color=ColorSequence.new({
+                ColorSequenceKeypoint.new(0,col),
+                ColorSequenceKeypoint.new(0.5,col2),
+                ColorSequenceKeypoint.new(1,col),
+            })
         end)
         BorderColorNow=col
         if activeThemeLabel then activeThemeLabel.TextColor3=col end
@@ -1419,11 +1549,19 @@ RunService.RenderStepped:Connect(function(dt)
             PopupFPSBig.Text=tostring(fps)
             PopupCapLabel.Text="cap:"..(targetFpsCap==165 and "165⚡" or tostring(targetFpsCap))
             local ratio=fps/math.max(targetFpsCap,1)
-            if ratio>=0.9 then PopupStatusLabel.Text="smooth" PopupStatusLabel.TextColor3=Color3.fromRGB(80,255,160)
-            elseif ratio>=0.6 then PopupStatusLabel.Text="ok" PopupStatusLabel.TextColor3=Color3.fromRGB(255,210,60)
-            else PopupStatusLabel.Text="low!" PopupStatusLabel.TextColor3=Color3.fromRGB(255,80,80) end
+            if ratio>=0.9 then
+                PopupStatusLabel.Text="smooth" PopupStatusLabel.TextColor3=Color3.fromRGB(80,255,160)
+            elseif ratio>=0.6 then
+                PopupStatusLabel.Text="ok" PopupStatusLabel.TextColor3=Color3.fromRGB(255,210,60)
+            else
+                PopupStatusLabel.Text="low!" PopupStatusLabel.TextColor3=Color3.fromRGB(255,80,80)
+            end
             local r=math.clamp(ratio,0,1)
-            PopupFPSBig.TextColor3=Color3.fromRGB(math.floor(lerpN(255,40,r)),math.floor(lerpN(60,255,r)),math.floor(lerpN(60,160,r)))
+            PopupFPSBig.TextColor3=Color3.fromRGB(
+                math.floor(lerpN(255,40,r)),
+                math.floor(lerpN(60,255,r)),
+                math.floor(lerpN(60,160,r))
+            )
         end
 
         if not rainbowActive and BorderColorNow~=lastBorderColor then
@@ -1442,4 +1580,4 @@ end)
 -- SECTION 33: INIT
 -- ================================================================
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
-print("✅ MYTHICAL SHADER v5.4 — Ball Slider / Bounce / Sky Fix / Stable!")
+print("✅ MYTHICAL SHADER v5.4 — Ball 2-Color / Sky Force Override / Sakura Polish!")
