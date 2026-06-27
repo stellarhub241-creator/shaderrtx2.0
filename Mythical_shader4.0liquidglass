@@ -1,5 +1,5 @@
 -- ================================================================
--- [[ STELLARHUB: MYTHICAL SHADER v5.6 ]]
+-- [[ STELLARHUB: MYTHICAL SHADER v5.7 ]]
 -- ================================================================
 -- SECTION 1: SERVICES
 -- ================================================================
@@ -30,6 +30,7 @@ local pbrEnabled        = true
 local dofEnabled        = true
 local antiBlueGloss     = true
 local horrorFogEnabled  = false
+local horrorBlue        = false   -- โทนน้ำเงินดำ
 local rainEnabled       = false
 local heavenlyEnabled   = false
 local cinematicEnabled  = false
@@ -38,13 +39,15 @@ local sakuraEnabled     = false
 local meteorEnabled     = false
 local sunrayEnabled     = false
 local neonEdgeEnabled   = false
+local dawnEnabled       = false
+local sunsetEnabled     = false
 local currentThemeIndex = 1
 local targetFpsCap      = 60
 local rainParticleCount = 40
 local sakuraCount       = 35
 local windStrength      = 0.5
 local meteorColor       = Color3.fromRGB(255,220,120)
-local meteorInterval    = 4
+local meteorInterval    = 3
 local originalFOV       = workspace.CurrentCamera.FieldOfView
 local originalFogStart  = Lighting.FogStart
 local originalFogEnd    = Lighting.FogEnd
@@ -56,17 +59,17 @@ local originalShadow    = Lighting.ShadowSoftness
 local originalOutdoor   = Lighting.OutdoorAmbient
 
 -- ================================================================
--- SECTION 3: THEMES
+-- SECTION 3: THEMES (White Glass / Clear)
 -- ================================================================
 local COLOR_THEMES = {
-    {name="Purple",      primary=Color3.fromRGB(180,0,255),   secondary=Color3.fromRGB(0,220,255),   ball=Color3.fromRGB(210,140,255), glass=false},
-    {name="Red",         primary=Color3.fromRGB(255,40,80),   secondary=Color3.fromRGB(255,120,0),   ball=Color3.fromRGB(255,140,150), glass=false},
-    {name="Pink",        primary=Color3.fromRGB(255,80,180),  secondary=Color3.fromRGB(255,180,220), ball=Color3.fromRGB(255,180,210), glass=false},
-    {name="Ocean",       primary=Color3.fromRGB(0,160,220),   secondary=Color3.fromRGB(0,230,200),   ball=Color3.fromRGB(120,210,240), glass=false},
-    {name="Crystal",     primary=Color3.fromRGB(140,220,255), secondary=Color3.fromRGB(200,255,240), ball=Color3.fromRGB(180,235,255), glass=false},
-    {name="Crimson",     primary=Color3.fromRGB(200,0,50),    secondary=Color3.fromRGB(255,80,40),   ball=Color3.fromRGB(255,130,130), glass=false},
-    {name="Liquid Glass",primary=Color3.fromRGB(200,235,255), secondary=Color3.fromRGB(180,220,255), ball=Color3.fromRGB(210,240,255), glass=true},
-    {name="Rainbow",     primary=Color3.fromRGB(255,0,0),     secondary=Color3.fromRGB(0,0,255),     ball=Color3.fromRGB(255,180,180), glass=false},
+    {name="Purple",      primary=Color3.fromRGB(160,0,235),   secondary=Color3.fromRGB(0,200,240),   ball=Color3.fromRGB(200,130,248), glass=false},
+    {name="Red",         primary=Color3.fromRGB(240,35,70),   secondary=Color3.fromRGB(240,110,0),   ball=Color3.fromRGB(248,135,145), glass=false},
+    {name="Pink",        primary=Color3.fromRGB(240,70,165),  secondary=Color3.fromRGB(240,165,210), ball=Color3.fromRGB(248,172,204), glass=false},
+    {name="Ocean",       primary=Color3.fromRGB(0,148,208),   secondary=Color3.fromRGB(0,215,188),   ball=Color3.fromRGB(112,200,232), glass=false},
+    {name="Crystal",     primary=Color3.fromRGB(130,210,248), secondary=Color3.fromRGB(192,248,234), ball=Color3.fromRGB(172,228,248), glass=false},
+    {name="Crimson",     primary=Color3.fromRGB(188,0,45),    secondary=Color3.fromRGB(240,72,35),   ball=Color3.fromRGB(248,124,124), glass=false},
+    {name="Liquid Glass",primary=Color3.fromRGB(180,220,248), secondary=Color3.fromRGB(160,208,248), ball=Color3.fromRGB(200,232,252), glass=true},
+    {name="Rainbow",     primary=Color3.fromRGB(240,0,0),     secondary=Color3.fromRGB(0,0,240),     ball=Color3.fromRGB(248,172,172), glass=false},
 }
 
 -- ================================================================
@@ -104,27 +107,35 @@ local SunRays         = Instance.new("SunRaysEffect",Lighting)
 local DOF             = Instance.new("DepthOfFieldEffect",Lighting)
 DOF.Name="StellarDOF" DOF.NearIntensity=0 DOF.FocusDistance=35 DOF.InFocusRadius=20 DOF.Enabled=dofEnabled
 
--- [FIX] bulletproof: ป้องกัน Sky ของแมพเพิ่มกลับมาทุกกรณี
 local skyGuardConn
-skyGuardConn=Lighting.ChildAdded:Connect(function(child)
-    if child:IsA("Sky") and child.Name~="StellarSky" then
-        task.defer(function() pcall(function() child:Destroy() end) end)
-    end
-end)
+local function connectSkyGuard()
+    if skyGuardConn then pcall(function() skyGuardConn:Disconnect() end) end
+    skyGuardConn=Lighting.ChildAdded:Connect(function(child)
+        if child:IsA("Sky") and child.Name~="StellarSky" then
+            task.defer(function() pcall(function() child:Destroy() end) end)
+        end
+    end)
+end
+connectSkyGuard()
 
 -- ================================================================
--- SECTION 6: PROFILES (ลบ DAWN/GOLDEN/SUNSET ออก ใช้ DAY/NIGHT)
+-- SECTION 6: PROFILES
 -- ================================================================
 local PROFILES = {
     DAY      = {brightness=1.5,exposure=0.1, shadow=0.3,ambient=Color3.fromRGB(50,50,60),  atmoColor=Color3.fromRGB(185,215,255),atmoDecay=Color3.fromRGB(110,120,140),atmoGlare=1.2,atmoHaze=1.2,atmoDensity=0.25,contrast=0.35,saturation=0.45,tint=Color3.fromRGB(255,235,200),bloom=0.35,bloomSize=16,bloomThreshold=0.85,dofFar=0.2,sunRays=0.25},
     NIGHT    = {brightness=1.8,exposure=0.18,shadow=0.25,ambient=Color3.fromRGB(20,28,55), atmoColor=Color3.fromRGB(20,35,80),  atmoDecay=Color3.fromRGB(10,15,40),  atmoGlare=0.5,atmoHaze=1.5,atmoDensity=0.35,contrast=0.35,saturation=0.4, tint=Color3.fromRGB(200,220,255),bloom=1.0, bloomSize=22,bloomThreshold=0.4, dofFar=0.4,sunRays=0.1},
+    -- [NEW] Dawn กลับมา
+    DAWN     = {brightness=1.6,exposure=0.15,shadow=0.2, ambient=Color3.fromRGB(50,35,55), atmoColor=Color3.fromRGB(180,120,160),atmoDecay=Color3.fromRGB(80,40,80),  atmoGlare=1.0,atmoHaze=1.8,atmoDensity=0.3, contrast=0.25,saturation=0.4, tint=Color3.fromRGB(255,210,220),bloom=0.5, bloomSize=18,bloomThreshold=0.7, dofFar=0.3,sunRays=0.2},
+    -- [NEW] Sunset/Golden Hour กลับมา
+    GOLDEN   = {brightness=2.2,exposure=0.2, shadow=0.2, ambient=Color3.fromRGB(80,50,30), atmoColor=Color3.fromRGB(255,130,50), atmoDecay=Color3.fromRGB(150,60,10), atmoGlare=2.0,atmoHaze=2.0,atmoDensity=0.35,contrast=0.35,saturation=0.7, tint=Color3.fromRGB(255,200,130),bloom=0.5, bloomSize=18,bloomThreshold=0.65,dofFar=0.4,sunRays=0.45},
     RAIN     = {brightness=0.75,exposure=-0.1,shadow=0.5,ambient=Color3.fromRGB(38,43,55), atmoColor=Color3.fromRGB(110,125,150),atmoDecay=Color3.fromRGB(55,62,78),  atmoGlare=0.15,atmoHaze=2.8,atmoDensity=0.45,contrast=0.08,saturation=-0.15,tint=Color3.fromRGB(190,208,232),bloom=0.3,bloomSize=12,bloomThreshold=0.9,dofFar=0.4,sunRays=0.0},
-    -- [FIX] Horror สวยขึ้น: เขียวมะกอกเข้ม หมอกหนาแน่น เงาสีมรกต
-    HORROR   = {brightness=0.35,exposure=-0.4,shadow=0.9,ambient=Color3.fromRGB(8,14,5),   atmoColor=Color3.fromRGB(18,32,12), atmoDecay=Color3.fromRGB(5,10,3),    atmoGlare=0.0,atmoHaze=3.5,atmoDensity=0.55,contrast=0.65,saturation=-0.6,tint=Color3.fromRGB(100,145,85), bloom=0.18,bloomSize=10,bloomThreshold=0.92,dofFar=0.7,sunRays=0.0},
-    -- [FIX] Heavenly สวยขึ้น: ทองนวลอบอุ่น แสงฟ้าสะอาด bloom สูง
-    HEAVENLY = {brightness=2.0,exposure=0.22,shadow=0.1,ambient=Color3.fromRGB(180,190,240),atmoColor=Color3.fromRGB(210,228,255),atmoDecay=Color3.fromRGB(170,195,248),atmoGlare=2.2,atmoHaze=0.6,atmoDensity=0.08,contrast=0.1,saturation=0.5,tint=Color3.fromRGB(255,248,228),bloom=1.2,bloomSize=28,bloomThreshold=0.45,dofFar=0.05,sunRays=0.6},
-    CINEMATIC= {brightness=0.9,exposure=-0.2,shadow=0.7,ambient=Color3.fromRGB(18,18,22),  atmoColor=Color3.fromRGB(60,60,80),  atmoDecay=Color3.fromRGB(20,20,30),  atmoGlare=0.0,atmoHaze=1.0,atmoDensity=0.3, contrast=0.6,saturation=-0.1,tint=Color3.fromRGB(200,210,230),bloom=0.08,bloomSize=8,bloomThreshold=0.98,dofFar=0.55,sunRays=0.05},
-    FULLMOON = {brightness=1.4,exposure=0.1, shadow=0.3,ambient=Color3.fromRGB(45,55,90),  atmoColor=Color3.fromRGB(30,40,80),  atmoDecay=Color3.fromRGB(15,20,50),  atmoGlare=0.3,atmoHaze=1.2,atmoDensity=0.25,contrast=0.2,saturation=0.15,tint=Color3.fromRGB(200,215,255),bloom=0.6,bloomSize=20,bloomThreshold=0.55,dofFar=0.3,sunRays=0.0},
+    HEAVENLY = {brightness=2.0,exposure=0.22,shadow=0.1, ambient=Color3.fromRGB(180,190,240),atmoColor=Color3.fromRGB(210,228,255),atmoDecay=Color3.fromRGB(170,195,248),atmoGlare=2.2,atmoHaze=0.6,atmoDensity=0.08,contrast=0.1,saturation=0.5,tint=Color3.fromRGB(255,248,228),bloom=1.2,bloomSize=28,bloomThreshold=0.45,dofFar=0.05,sunRays=0.6},
+    CINEMATIC= {brightness=0.9,exposure=-0.2,shadow=0.7, ambient=Color3.fromRGB(18,18,22),  atmoColor=Color3.fromRGB(60,60,80),  atmoDecay=Color3.fromRGB(20,20,30),  atmoGlare=0.0,atmoHaze=1.0,atmoDensity=0.3, contrast=0.6,saturation=-0.1,tint=Color3.fromRGB(200,210,230),bloom=0.08,bloomSize=8,bloomThreshold=0.98,dofFar=0.55,sunRays=0.05},
+    -- Horror โทนเขียว
+    HORROR_GREEN = {brightness=0.35,exposure=-0.4,shadow=0.9,ambient=Color3.fromRGB(8,14,5),  atmoColor=Color3.fromRGB(18,32,12),atmoDecay=Color3.fromRGB(5,10,3),atmoGlare=0.0,atmoHaze=3.5,atmoDensity=0.55,contrast=0.65,saturation=-0.6,tint=Color3.fromRGB(100,145,85), bloom=0.18,bloomSize=10,bloomThreshold=0.92,dofFar=0.7,sunRays=0.0},
+    -- [NEW] Horror โทนน้ำเงินดำ
+    HORROR_BLUE  = {brightness=0.3, exposure=-0.5,shadow=0.95,ambient=Color3.fromRGB(4,6,18), atmoColor=Color3.fromRGB(8,10,28), atmoDecay=Color3.fromRGB(2,3,12), atmoGlare=0.0,atmoHaze=4.0,atmoDensity=0.62,contrast=0.7,saturation=-0.75,tint=Color3.fromRGB(80,90,140),  bloom=0.12,bloomSize=8, bloomThreshold=0.95,dofFar=0.8,sunRays=0.0},
+    FULLMOON = {brightness=1.4,exposure=0.1, shadow=0.3, ambient=Color3.fromRGB(45,55,90),  atmoColor=Color3.fromRGB(30,40,80),  atmoDecay=Color3.fromRGB(15,20,50),  atmoGlare=0.3,atmoHaze=1.2,atmoDensity=0.25,contrast=0.2,saturation=0.15,tint=Color3.fromRGB(200,215,255),bloom=0.6,bloomSize=20,bloomThreshold=0.55,dofFar=0.3,sunRays=0.0},
 }
 
 -- ================================================================
@@ -170,12 +181,16 @@ end
 
 local function reapplyActiveMode()
     if horrorFogEnabled then
-        applyLighting(PROFILES.HORROR)
-        pcall(function()
-            Lighting.FogStart=4 Lighting.FogEnd=80
-            Lighting.FogColor=Color3.fromRGB(10,18,6)
-            Lighting.Ambient=Color3.fromRGB(6,10,3)
-        end)
+        local p=horrorBlue and PROFILES.HORROR_BLUE or PROFILES.HORROR_GREEN
+        applyLighting(p)
+        local fc=horrorBlue and Color3.fromRGB(4,5,14) or Color3.fromRGB(8,14,4)
+        pcall(function() Lighting.FogStart=4 Lighting.FogEnd=80 Lighting.FogColor=fc Lighting.Ambient=fc end)
+    elseif dawnEnabled then
+        applyLighting(PROFILES.DAWN)
+        pcall(function() Lighting.ClockTime=5.5 end)
+    elseif sunsetEnabled then
+        applyLighting(PROFILES.GOLDEN)
+        pcall(function() Lighting.ClockTime=19 end)
     elseif rainEnabled then
         applyLighting(PROFILES.RAIN)
         pcall(function() Lighting.FogStart=20 Lighting.FogEnd=200 Lighting.FogColor=Color3.fromRGB(110,122,142) end)
@@ -250,7 +265,7 @@ local function createRainParticles()
 end
 
 -- ================================================================
--- SECTION 9: SAKURA (ParticleEmitter จริง)
+-- SECTION 9: SAKURA (ParticleEmitter สวยขึ้น)
 -- ================================================================
 local sakuraFolder=nil local sakuraConns={}
 
@@ -265,24 +280,51 @@ local function createSakura()
     clearSakura()
     sakuraFolder=Instance.new("Folder",workspace) sakuraFolder.Name="StellarSakura"
     local cam=workspace.CurrentCamera
+
     local emitter=Instance.new("Part",sakuraFolder)
-    emitter.Size=Vector3.new(1,1,1) emitter.Anchored=true emitter.CanCollide=false
+    emitter.Size=Vector3.new(60,1,60)
+    emitter.Anchored=true emitter.CanCollide=false
     emitter.Transparency=1 emitter.CastShadow=false emitter.Name="SakuraEmitter"
+
+    -- [FIX] ParticleEmitter สวยขึ้น ใช้ texture ที่ดีกว่า
     local pe=Instance.new("ParticleEmitter",emitter)
     pe.Texture="rbxassetid://266310694"
-    pe.Rate=math.clamp(sakuraCount*0.8,8,65)
-    pe.Lifetime=NumberRange.new(3.5,6.5) pe.Speed=NumberRange.new(1,4)
-    pe.SpreadAngle=Vector2.new(80,80) pe.RotSpeed=NumberRange.new(-120,120)
-    pe.Rotation=NumberRange.new(0,360) pe.LightEmission=0.15 pe.LightInfluence=0.85
-    pe.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.1),NumberSequenceKeypoint.new(0.8,0.2),NumberSequenceKeypoint.new(1,1)})
-    pe.Size=NumberSequence.new({NumberSequenceKeypoint.new(0,0),NumberSequenceKeypoint.new(0.15,0.9),NumberSequenceKeypoint.new(0.85,0.7),NumberSequenceKeypoint.new(1,0)})
-    pe.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,220,235)),ColorSequenceKeypoint.new(0.4,Color3.fromRGB(255,185,210)),ColorSequenceKeypoint.new(1,Color3.fromRGB(240,150,180))})
-    pe.Acceleration=Vector3.new(0,-1.2,0) pe.EmissionDirection=Enum.NormalId.Top
+    pe.Rate=math.clamp(sakuraCount*1.2,12,90)
+    pe.Lifetime=NumberRange.new(4,8)
+    pe.Speed=NumberRange.new(0.5,3)
+    pe.SpreadAngle=Vector2.new(60,60)
+    pe.RotSpeed=NumberRange.new(-80,80)
+    pe.Rotation=NumberRange.new(0,360)
+    pe.LightEmission=0.2
+    pe.LightInfluence=0.8
+    pe.Transparency=NumberSequence.new({
+        NumberSequenceKeypoint.new(0,0.05),
+        NumberSequenceKeypoint.new(0.7,0.15),
+        NumberSequenceKeypoint.new(1,1),
+    })
+    pe.Size=NumberSequence.new({
+        NumberSequenceKeypoint.new(0,0),
+        NumberSequenceKeypoint.new(0.1,1.1),
+        NumberSequenceKeypoint.new(0.9,0.9),
+        NumberSequenceKeypoint.new(1,0),
+    })
+    pe.Color=ColorSequence.new({
+        ColorSequenceKeypoint.new(0,Color3.fromRGB(255,230,242)),
+        ColorSequenceKeypoint.new(0.35,Color3.fromRGB(255,192,218)),
+        ColorSequenceKeypoint.new(0.7,Color3.fromRGB(248,160,195)),
+        ColorSequenceKeypoint.new(1,Color3.fromRGB(235,140,180)),
+    })
+    -- drift ลอยตามลม
+    pe.Acceleration=Vector3.new(0.4,-0.8,0.2)
+    pe.EmissionDirection=Enum.NormalId.Top
+    pe.VelocityInheritance=0
+
+    -- emitter ลอยตาม cam บนหัว
     local conn=RunService.Heartbeat:Connect(function()
         if not sakuraFolder or not sakuraFolder.Parent then return end
         if not emitter or not emitter.Parent then return end
         local cp=cam.CFrame.Position
-        emitter.CFrame=CFrame.new(cp.X,cp.Y+12,cp.Z)
+        emitter.CFrame=CFrame.new(cp.X,cp.Y+10,cp.Z)
     end)
     table.insert(sakuraConns,conn)
 end
@@ -335,7 +377,7 @@ local function startWind()
 end
 
 -- ================================================================
--- SECTION 11: METEOR SHOWER (สวยขึ้นมาก)
+-- SECTION 11: METEOR (สวยขึ้น ใกล้ cam มากขึ้น)
 -- ================================================================
 local meteorFolder=nil local meteorConns={} local meteorRunning=false
 
@@ -352,80 +394,90 @@ local function spawnOneMeteor()
     local cam=workspace.CurrentCamera
     local cp=cam.CFrame.Position
 
-    -- spawn บนฟ้า สุ่มตำแหน่ง
+    -- [FIX] spawn ใกล้ cam มากขึ้น มองเห็นได้ทุกแมพ
     local angle=math.random()*math.pi*2
-    local dist=math.random(80,160)
-    local sx=cp.X+math.cos(angle)*dist
-    local sy=cp.Y+math.random(100,160)
-    local sz=cp.Z+math.sin(angle)*dist
+    local sx=cp.X+math.cos(angle)*60
+    local sy=cp.Y+math.random(40,70)  -- ต่ำลงมาก ใกล้จอ
+    local sz=cp.Z+math.sin(angle)*60
 
-    -- ทิศทางเฉียงลงหา cam
-    local target=Vector3.new(cp.X+(math.random()-0.5)*60,cp.Y-20,cp.Z+(math.random()-0.5)*60)
+    -- ทิศทางเฉียงลง
+    local target=Vector3.new(cp.X+(math.random()-0.5)*30,cp.Y-15,cp.Z+(math.random()-0.5)*30)
     local dir=(target-Vector3.new(sx,sy,sz)).Unit
-    local speed=math.random(80,140)
-    local len=math.random(14,28)
+    local speed=math.random(55,95)
+    local len=math.random(18,35)
 
-    -- HEAD: core สว่าง
+    -- HEAD
     local head=Instance.new("Part",meteorFolder)
-    head.Size=Vector3.new(0.6,0.6,0.6) head.Material=Enum.Material.Neon
-    head.Color=meteorColor head.Transparency=0 head.CastShadow=false
-    head.Anchored=true head.CanCollide=false
+    head.Size=Vector3.new(0.7,0.7,0.7)
+    head.Material=Enum.Material.Neon head.Color=meteorColor
+    head.Transparency=0 head.CastShadow=false head.Anchored=true head.CanCollide=false
     Instance.new("SpecialMesh",head).MeshType=Enum.MeshType.Sphere
 
-    -- BODY: trail หลัก
+    -- BODY
     local body=Instance.new("Part",meteorFolder)
-    body.Size=Vector3.new(0.25,0.25,len) body.Material=Enum.Material.Neon
-    body.Color=lerpC(meteorColor,Color3.fromRGB(255,255,255),0.5)
-    body.Transparency=0.25 body.CastShadow=false body.Anchored=true body.CanCollide=false
+    body.Size=Vector3.new(0.3,0.3,len)
+    body.Material=Enum.Material.Neon
+    body.Color=lerpC(meteorColor,Color3.fromRGB(255,255,255),0.45)
+    body.Transparency=0.18 body.CastShadow=false body.Anchored=true body.CanCollide=false
 
-    -- TAIL: trail จาง
+    -- TAIL
     local tail=Instance.new("Part",meteorFolder)
-    tail.Size=Vector3.new(0.1,0.1,len*2.2) tail.Material=Enum.Material.Neon
-    tail.Color=lerpC(meteorColor,Color3.fromRGB(255,255,255),0.8)
-    tail.Transparency=0.68 tail.CastShadow=false tail.Anchored=true tail.CanCollide=false
+    tail.Size=Vector3.new(0.12,0.12,len*2.4)
+    tail.Material=Enum.Material.Neon
+    tail.Color=lerpC(meteorColor,Color3.fromRGB(255,255,255),0.75)
+    tail.Transparency=0.6 tail.CastShadow=false tail.Anchored=true tail.CanCollide=false
 
-    -- GLOW: sphere รอบ head
+    -- TAIL2 (จางมาก ยาวมาก)
+    local tail2=Instance.new("Part",meteorFolder)
+    tail2.Size=Vector3.new(0.06,0.06,len*4)
+    tail2.Material=Enum.Material.Neon
+    tail2.Color=Color3.fromRGB(255,255,255)
+    tail2.Transparency=0.82 tail2.CastShadow=false tail2.Anchored=true tail2.CanCollide=false
+
+    -- GLOW sphere
     local glow=Instance.new("Part",meteorFolder)
-    glow.Size=Vector3.new(3,3,3) glow.Material=Enum.Material.Neon
-    glow.Color=meteorColor glow.Transparency=0.82 glow.CastShadow=false
-    glow.Anchored=true glow.CanCollide=false
+    glow.Size=Vector3.new(4,4,4)
+    glow.Material=Enum.Material.Neon glow.Color=meteorColor
+    glow.Transparency=0.78 glow.CastShadow=false glow.Anchored=true glow.CanCollide=false
     Instance.new("SpecialMesh",glow).MeshType=Enum.MeshType.Sphere
 
-    -- particle ประกาย
+    -- Particle ประกาย
     local pe=Instance.new("ParticleEmitter",head)
     pe.Texture="rbxassetid://6101261905"
-    pe.Rate=90 pe.Lifetime=NumberRange.new(0.15,0.45)
-    pe.Speed=NumberRange.new(4,12) pe.SpreadAngle=Vector2.new(35,35)
-    pe.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,meteorColor),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(255,255,200)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,255,255))})
-    pe.Size=NumberSequence.new({NumberSequenceKeypoint.new(0,0.5),NumberSequenceKeypoint.new(0.5,0.25),NumberSequenceKeypoint.new(1,0)})
-    pe.LightEmission=1.0 pe.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.1),NumberSequenceKeypoint.new(1,1)})
+    pe.Rate=120 pe.Lifetime=NumberRange.new(0.1,0.4)
+    pe.Speed=NumberRange.new(3,10) pe.SpreadAngle=Vector2.new(28,28)
+    pe.Color=ColorSequence.new({
+        ColorSequenceKeypoint.new(0,meteorColor),
+        ColorSequenceKeypoint.new(0.4,Color3.fromRGB(255,245,180)),
+        ColorSequenceKeypoint.new(1,Color3.fromRGB(255,255,255)),
+    })
+    pe.Size=NumberSequence.new({NumberSequenceKeypoint.new(0,0.55),NumberSequenceKeypoint.new(0.5,0.28),NumberSequenceKeypoint.new(1,0)})
+    pe.LightEmission=1.0
+    pe.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.05),NumberSequenceKeypoint.new(1,1)})
 
-    -- คำนวณ CFrame ให้หัวชี้ทิศทาง
-    local cf=CFrame.lookAt(Vector3.new(sx,sy,sz),Vector3.new(sx,sy,sz)+dir)*CFrame.Angles(math.pi/2,0,0)
-
-    local life=0 local maxLife=4.5 local traveled=0
+    local life=0 local maxLife=3.5
 
     local conn=RunService.Heartbeat:Connect(function(dt)
         life=life+dt
         if life>=maxLife then
             pe.Enabled=false
-            pcall(function() head:Destroy() body:Destroy() tail:Destroy() glow:Destroy() end)
+            pcall(function() head:Destroy() body:Destroy() tail:Destroy() tail2:Destroy() glow:Destroy() end)
             return
         end
-        local move=dir*speed*dt
-        local fade=math.clamp(1-(life-3)/1.5,0,1)
+        local fade=math.clamp(1-(life-2.2)/1.3,0,1)
+        local np=Vector3.new(sx,sy,sz)+dir*speed*life
         pcall(function()
-            local np=Vector3.new(sx,sy,sz)+dir*speed*life
-            local headCF=CFrame.lookAt(np,np+dir)*CFrame.Angles(math.pi/2,0,0)
             head.CFrame=CFrame.new(np)
-            body.CFrame=CFrame.lookAt(np-dir*(len/2),np-dir*(len/2)+dir)*CFrame.Angles(math.pi/2,0,0)
-            tail.CFrame=CFrame.lookAt(np-dir*(len*1.5),np-dir*(len*1.5)+dir)*CFrame.Angles(math.pi/2,0,0)
-            glow.CFrame=CFrame.new(np)
-            -- pulse glow
-            local pulse=1+math.sin(life*20)*0.15
-            glow.Size=Vector3.new(3*pulse,3*pulse,3*pulse)
-            head.Transparency=1-fade body.Transparency=0.25+(1-fade)*0.75
-            tail.Transparency=0.68+(1-fade)*0.32 glow.Transparency=0.82+(1-fade)*0.18
+            body.CFrame=CFrame.lookAt(np-dir*(len*0.5),np-dir*(len*0.5)+dir)*CFrame.Angles(math.pi/2,0,0)
+            tail.CFrame=CFrame.lookAt(np-dir*(len*1.4),np-dir*(len*1.4)+dir)*CFrame.Angles(math.pi/2,0,0)
+            tail2.CFrame=CFrame.lookAt(np-dir*(len*3),np-dir*(len*3)+dir)*CFrame.Angles(math.pi/2,0,0)
+            local pulse=1+math.sin(life*18)*0.12
+            glow.CFrame=CFrame.new(np) glow.Size=Vector3.new(4*pulse,4*pulse,4*pulse)
+            head.Transparency=1-fade
+            body.Transparency=0.18+(1-fade)*0.82
+            tail.Transparency=0.6+(1-fade)*0.4
+            tail2.Transparency=0.82+(1-fade)*0.18
+            glow.Transparency=0.78+(1-fade)*0.22
         end)
     end)
     table.insert(meteorConns,conn)
@@ -438,13 +490,13 @@ local function startMeteor()
     task.spawn(function()
         while meteorRunning do
             spawnOneMeteor()
-            task.wait(math.random()*meteorInterval+0.8)
+            task.wait(math.random()*meteorInterval+0.5)
         end
     end)
 end
 
 -- ================================================================
--- SECTION 12: SUN OBJECT
+-- SECTION 12: SUN OBJECT (สวยขึ้น ray หลายเส้น)
 -- ================================================================
 local sunFolder=nil local sunConns={}
 
@@ -459,90 +511,134 @@ local function startSunray()
     clearSunray()
     sunFolder=Instance.new("Folder",workspace) sunFolder.Name="StellarSun"
     local cam=workspace.CurrentCamera
-    local sunCore=Instance.new("Part",sunFolder)
-    sunCore.Size=Vector3.new(12,12,12) sunCore.Material=Enum.Material.Neon
-    sunCore.Color=Color3.fromRGB(255,240,160) sunCore.Transparency=0
-    sunCore.CastShadow=false sunCore.Anchored=true sunCore.CanCollide=false
-    Instance.new("SpecialMesh",sunCore).MeshType=Enum.MeshType.Sphere
-    local corona=Instance.new("Part",sunFolder)
-    corona.Size=Vector3.new(22,22,22) corona.Material=Enum.Material.Neon
-    corona.Color=Color3.fromRGB(255,200,80) corona.Transparency=0.6
-    corona.CastShadow=false corona.Anchored=true corona.CanCollide=false
-    Instance.new("SpecialMesh",corona).MeshType=Enum.MeshType.Sphere
-    local glow=Instance.new("Part",sunFolder)
-    glow.Size=Vector3.new(36,36,36) glow.Material=Enum.Material.Neon
-    glow.Color=Color3.fromRGB(255,160,40) glow.Transparency=0.82
-    glow.CastShadow=false glow.Anchored=true glow.CanCollide=false
-    Instance.new("SpecialMesh",glow).MeshType=Enum.MeshType.Sphere
-    local pe=Instance.new("ParticleEmitter",sunCore)
-    pe.Texture="rbxassetid://6101261905" pe.Rate=20 pe.Lifetime=NumberRange.new(0.8,1.8)
-    pe.Speed=NumberRange.new(8,20) pe.SpreadAngle=Vector2.new(180,180)
-    pe.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,240,160)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,120,0))})
-    pe.Size=NumberSequence.new({NumberSequenceKeypoint.new(0,0.8),NumberSequenceKeypoint.new(1,0)})
-    pe.LightEmission=1.0 pe.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.2),NumberSequenceKeypoint.new(1,1)})
+
+    -- Core
+    local core=Instance.new("Part",sunFolder)
+    core.Size=Vector3.new(14,14,14) core.Material=Enum.Material.Neon
+    core.Color=Color3.fromRGB(255,248,180) core.Transparency=0
+    core.CastShadow=false core.Anchored=true core.CanCollide=false
+    Instance.new("SpecialMesh",core).MeshType=Enum.MeshType.Sphere
+
+    -- Corona layers
+    local layers={
+        {sz=22,col=Color3.fromRGB(255,220,100),tr=0.55},
+        {sz=32,col=Color3.fromRGB(255,190,60), tr=0.72},
+        {sz=46,col=Color3.fromRGB(255,150,30), tr=0.85},
+        {sz=68,col=Color3.fromRGB(255,100,10), tr=0.93},
+    }
+    local coronaParts={}
+    for _,l in ipairs(layers) do
+        local c=Instance.new("Part",sunFolder)
+        c.Size=Vector3.new(l.sz,l.sz,l.sz) c.Material=Enum.Material.Neon
+        c.Color=l.col c.Transparency=l.tr
+        c.CastShadow=false c.Anchored=true c.CanCollide=false
+        Instance.new("SpecialMesh",c).MeshType=Enum.MeshType.Sphere
+        table.insert(coronaParts,{part=c,baseSz=l.sz,baseTr=l.tr})
+    end
+
+    -- [NEW] Sun rays หลายเส้น
+    local rays={}
+    for i=1,8 do
+        local ray=Instance.new("Part",sunFolder)
+        ray.Size=Vector3.new(0.8,0.8,math.random(30,55))
+        ray.Material=Enum.Material.Neon
+        ray.Color=Color3.fromRGB(255,235,140) ray.Transparency=0.6
+        ray.CastShadow=false ray.Anchored=true ray.CanCollide=false
+        table.insert(rays,{part=ray,angle=(i/8)*math.pi*2,tilt=math.random()*0.5})
+    end
+
+    -- Particle
+    local pe=Instance.new("ParticleEmitter",core)
+    pe.Texture="rbxassetid://6101261905" pe.Rate=30 pe.Lifetime=NumberRange.new(1,2.5)
+    pe.Speed=NumberRange.new(12,28) pe.SpreadAngle=Vector2.new(180,180)
+    pe.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,248,180)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(255,180,50)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,100,0))})
+    pe.Size=NumberSequence.new({NumberSequenceKeypoint.new(0,1.0),NumberSequenceKeypoint.new(0.5,0.5),NumberSequenceKeypoint.new(1,0)})
+    pe.LightEmission=1.0
+    pe.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.15),NumberSequenceKeypoint.new(1,1)})
+
     local t0=tick()
     local conn=RunService.Heartbeat:Connect(function()
         if not sunFolder or not sunFolder.Parent then return end
         local cp=cam.CFrame.Position
         local t=tick()-t0
-        local ag=t*0.05
-        local sunPos=cp+Vector3.new(math.cos(ag)*200,160,math.sin(ag)*200)
-        local pulse=1+math.sin(t*2)*0.04
+        local ag=t*0.04
+        -- วนรอบ cam
+        local sunPos=cp+Vector3.new(math.cos(ag)*180,140+math.sin(t*0.3)*8,math.sin(ag)*180)
+        local pulse=1+math.sin(t*2.2)*0.05
         pcall(function()
-            sunCore.CFrame=CFrame.new(sunPos)
-            corona.CFrame=CFrame.new(sunPos) corona.Size=Vector3.new(22*pulse,22*pulse,22*pulse)
-            glow.CFrame=CFrame.new(sunPos) glow.Size=Vector3.new(36*pulse,36*pulse,36*pulse)
+            core.CFrame=CFrame.new(sunPos)
+            for _,lc in ipairs(coronaParts) do
+                lc.part.CFrame=CFrame.new(sunPos)
+                lc.part.Size=Vector3.new(lc.baseSz*pulse,lc.baseSz*pulse,lc.baseSz*pulse)
+                lc.part.Transparency=lc.baseTr+(math.sin(t*1.8)*0.04)
+            end
+            -- หมุน rays รอบดวงอาทิตย์
+            for _,r in ipairs(rays) do
+                local ra=r.angle+t*0.6
+                local rx=sunPos+Vector3.new(math.cos(ra)*28,math.sin(r.tilt)*12,math.sin(ra)*28)
+                r.part.CFrame=CFrame.lookAt(rx,sunPos)*CFrame.Angles(math.pi/2,0,0)
+                r.part.Transparency=0.55+math.sin(t*3+r.angle)*0.2
+            end
         end)
     end)
     table.insert(sunConns,conn)
 end
 
 -- ================================================================
--- SECTION 13: NEON EDGE
+-- SECTION 13: NEON EDGE (ตรวจจับขอบจอจริง AbsoluteSize)
 -- ================================================================
-local neonEdgeFrame=nil local neonEdgeConns={}
+local neonEdgeConns={} local neonEdges={}
 
 local function clearNeonEdge()
     for _,c in pairs(neonEdgeConns) do pcall(function() c:Disconnect() end) end
     neonEdgeConns={}
-    if neonEdgeFrame and neonEdgeFrame.Parent then neonEdgeFrame:Destroy() end
-    neonEdgeFrame=nil
+    for _,e in ipairs(neonEdges) do pcall(function() e:Destroy() end) end
+    neonEdges={}
 end
 
 local function startNeonEdge(sg)
     clearNeonEdge()
-    neonEdgeFrame=Instance.new("Frame",sg)
-    neonEdgeFrame.Size=UDim2.new(1,0,1,0) neonEdgeFrame.BackgroundTransparency=1
-    neonEdgeFrame.ZIndex=100 neonEdgeFrame.Name="StellarNeonEdge"
     local EDGE_W=8
-    local edges={}
+    -- สร้างขอบ 4 ด้านแยกกัน ไม่ใช้ container
     local edgeDefs={
-        {UDim2.new(0,0,0,0),     UDim2.new(1,0,0,EDGE_W)},
-        {UDim2.new(0,0,1,-EDGE_W),UDim2.new(1,0,0,EDGE_W)},
-        {UDim2.new(0,0,0,0),     UDim2.new(0,EDGE_W,1,0)},
-        {UDim2.new(1,-EDGE_W,0,0),UDim2.new(0,EDGE_W,1,0)},
+        -- top
+        {pos=UDim2.new(0,0,0,0),         size=UDim2.new(1,0,0,EDGE_W)},
+        -- bottom
+        {pos=UDim2.new(0,0,1,-EDGE_W),   size=UDim2.new(1,0,0,EDGE_W)},
+        -- left
+        {pos=UDim2.new(0,0,0,0),         size=UDim2.new(0,EDGE_W,1,0)},
+        -- right
+        {pos=UDim2.new(1,-EDGE_W,0,0),   size=UDim2.new(0,EDGE_W,1,0)},
     }
+    local grads={}
     for _,ed in ipairs(edgeDefs) do
-        local e=Instance.new("Frame",neonEdgeFrame)
-        e.Position=ed[1] e.Size=ed[2]
-        e.BackgroundColor3=Color3.fromRGB(180,0,255) e.BackgroundTransparency=0.3
-        e.BorderSizePixel=0 e.ZIndex=101
-        local eg=Instance.new("UIGradient",e)
-        eg.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(180,0,255)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(0,220,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(180,0,255))})
-        table.insert(edges,{frame=e,grad=eg})
+        local f=Instance.new("Frame",sg)
+        f.Position=ed.pos f.Size=ed.size
+        f.BackgroundColor3=Color3.fromRGB(180,0,255) f.BackgroundTransparency=0.3
+        f.BorderSizePixel=0 f.ZIndex=200
+        f.IgnoreGuiInset=true
+        -- ไม่ต้องใช้ UICorner
+        local g=Instance.new("UIGradient",f)
+        g.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(180,0,255)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(0,220,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(180,0,255))})
+        table.insert(neonEdges,f)
+        table.insert(grads,g)
     end
+
     local conn=RunService.RenderStepped:Connect(function()
-        if not neonEdgeFrame or not neonEdgeFrame.Parent then return end
         local t=tick()
         local theme=COLOR_THEMES[currentThemeIndex]
-        local pulse=0.25+math.sin(t*3)*0.1
-        local h=((t*30)%360)/360
-        local col=Color3.fromHSV(h,0.9,1)
-        for _,ed in ipairs(edges) do
+        local pulse=0.22+math.abs(math.sin(t*2.5))*0.18
+        local h=((t*28)%360)/360
+        local col=Color3.fromHSV(h,0.85,1)
+        for i,e in ipairs(neonEdges) do
             pcall(function()
-                ed.frame.BackgroundTransparency=pulse
-                ed.grad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,theme.primary),ColorSequenceKeypoint.new(0.5,col),ColorSequenceKeypoint.new(1,theme.secondary)})
-                ed.grad.Offset=Vector2.new(math.sin(t*0.7)*0.3,0)
+                e.BackgroundTransparency=pulse
+                grads[i].Color=ColorSequence.new({
+                    ColorSequenceKeypoint.new(0,theme.primary),
+                    ColorSequenceKeypoint.new(0.5,col),
+                    ColorSequenceKeypoint.new(1,theme.secondary),
+                })
+                grads[i].Offset=Vector2.new(math.sin(t*0.6+i)*0.28,0)
             end)
         end
     end)
@@ -550,13 +646,15 @@ local function startNeonEdge(sg)
 end
 
 -- ================================================================
--- SECTION 14: TIME LOOP (ลดเหลือ DAY/NIGHT เท่านั้น)
+-- SECTION 14: TIME LOOP (Day/Night + Dawn/Sunset จาก Graphics)
 -- ================================================================
 local ModeText="Status: Loading..." local BorderColorNow=Color3.fromRGB(180,0,255) local rainbowHue=0
 
 task.spawn(function()
     while task.wait(0.25) do
-        if not horrorFogEnabled and not rainEnabled and not heavenlyEnabled then
+        -- time loop ทำงานเฉพาะเมื่อไม่มี mode พิเศษ
+        if not horrorFogEnabled and not rainEnabled and not heavenlyEnabled
+            and not dawnEnabled and not sunsetEnabled then
             local t=Lighting.ClockTime
             if t>=6 and t<19 then
                 applyLighting(PROFILES.DAY) ModeText="Status: Day" BorderColorNow=Color3.fromRGB(255,220,100)
@@ -648,38 +746,38 @@ local function triggerFPSBoost(on)
 end
 
 -- ================================================================
--- SECTION 17: UI FRAMEWORK
+-- SECTION 17: UI FRAMEWORK (White Glass / Clear โทน)
 -- ================================================================
 local ScreenGui=Instance.new("ScreenGui",CoreGui)
 ScreenGui.Name="STELLARHUB_MYTHICAL" ScreenGui.ResetOnSpawn=false ScreenGui.IgnoreGuiInset=true
 
--- smooth tween helper (ลื่นขึ้น)
-local SMOOTH=TweenInfo.new(0.22,Enum.EasingStyle.Quart,Enum.EasingDirection.Out)
-local SMOOTH_BACK=TweenInfo.new(0.28,Enum.EasingStyle.Back,Enum.EasingDirection.Out)
-local SMOOTH_FAST=TweenInfo.new(0.14,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
+local SMOOTH       = TweenInfo.new(0.22,Enum.EasingStyle.Quart,Enum.EasingDirection.Out)
+local SMOOTH_BACK  = TweenInfo.new(0.28,Enum.EasingStyle.Back,Enum.EasingDirection.Out)
+local SMOOTH_FAST  = TweenInfo.new(0.12,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
 
-local function tween(obj,props,info) pcall(function() TweenService:Create(obj,info or SMOOTH,props):Play() end) end
+local function tw(obj,props,info) pcall(function() TweenService:Create(obj,info or SMOOTH,props):Play() end) end
 
 local function spring(btn)
     pcall(function()
         local us=btn:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",btn)
         us.Scale=1.0
         btn.MouseEnter:Connect(function() pcall(function()
-            tween(us,{Scale=1.08},SMOOTH_BACK)
-            tween(btn,{BackgroundTransparency=0.08},SMOOTH_FAST)
+            tw(us,{Scale=1.08},SMOOTH_BACK)
+            tw(btn,{BackgroundTransparency=0.05},SMOOTH_FAST)
         end) end)
         btn.MouseLeave:Connect(function() pcall(function()
-            tween(us,{Scale=1.0},SMOOTH)
-            tween(btn,{BackgroundTransparency=0.35},SMOOTH_FAST)
+            tw(us,{Scale=1.0},SMOOTH)
+            tw(btn,{BackgroundTransparency=0.32},SMOOTH_FAST)
         end) end)
         btn.InputBegan:Connect(function(i)
             if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-                pcall(function() tween(us,{Scale=0.93},SMOOTH_FAST) end)
+                -- [FIX] ไม่ลดความทึบตอนกด แค่ scale
+                pcall(function() tw(us,{Scale=0.94},SMOOTH_FAST) end)
             end
         end)
         btn.InputEnded:Connect(function(i)
             if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-                pcall(function() tween(us,{Scale=1.0},SMOOTH_BACK) end)
+                pcall(function() tw(us,{Scale=1.0},SMOOTH_BACK) end)
             end
         end)
     end)
@@ -694,9 +792,9 @@ local function addBounceOnHold(frame)
                 pcall(function()
                     local us=frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",frame)
                     us.Scale=1
-                    tween(us,{Scale=1.14},TweenInfo.new(0.1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out))
+                    tw(us,{Scale=1.14},TweenInfo.new(0.1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out))
                     task.wait(0.1)
-                    tween(us,{Scale=1.0},TweenInfo.new(0.28,Enum.EasingStyle.Bounce,Enum.EasingDirection.Out))
+                    tw(us,{Scale=1.0},TweenInfo.new(0.28,Enum.EasingStyle.Bounce,Enum.EasingDirection.Out))
                 end)
                 holdThread=nil
             end)
@@ -710,65 +808,64 @@ local function addBounceOnHold(frame)
 end
 
 -- ================================================================
--- SECTION 18: MAIN FRAME
+-- SECTION 18: MAIN FRAME (White Glass Clear)
 -- ================================================================
 local MainFrame=Instance.new("Frame",ScreenGui)
 MainFrame.Size=UDim2.new(0,332,0,272)
 MainFrame.Position=UDim2.new(0.5,-166,0.4,-136)
-MainFrame.BackgroundColor3=Color3.fromRGB(9,7,15)
-MainFrame.BackgroundTransparency=0.22
+-- [FIX] โทน White Glass: ขาวนวล ใส frosted
+MainFrame.BackgroundColor3=Color3.fromRGB(240,242,248)
+MainFrame.BackgroundTransparency=0.12
 MainFrame.BorderSizePixel=0 MainFrame.Active=true MainFrame.ClipsDescendants=true
 Instance.new("UICorner",MainFrame).CornerRadius=UDim.new(0,16)
 
--- inner top highlight
+-- frosted glass noise overlay (จำลอง)
+local FrostLayer=Instance.new("Frame",MainFrame)
+FrostLayer.Size=UDim2.new(1,0,1,0) FrostLayer.BackgroundColor3=Color3.fromRGB(255,255,255)
+FrostLayer.BackgroundTransparency=0.88 FrostLayer.BorderSizePixel=0 FrostLayer.ZIndex=0
+Instance.new("UICorner",FrostLayer).CornerRadius=UDim.new(0,16)
+
+-- top highlight ขอบบน
 local TopHighlight=Instance.new("Frame",MainFrame)
 TopHighlight.Size=UDim2.new(1,0,0,1) TopHighlight.Position=UDim2.new(0,0,0,0)
 TopHighlight.BorderSizePixel=0 TopHighlight.ZIndex=10
 local thg=Instance.new("UIGradient",TopHighlight)
-thg.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(0,0,0)),ColorSequenceKeypoint.new(0.3,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(0.7,Color3.fromRGB(200,230,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(0,0,0))})
-thg.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.3,0.55),NumberSequenceKeypoint.new(0.7,0.55),NumberSequenceKeypoint.new(1,1)})
+thg.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(0,0,0)),ColorSequenceKeypoint.new(0.3,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(0.7,Color3.fromRGB(200,220,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(0,0,0))})
+thg.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.3,0.45),NumberSequenceKeypoint.new(0.7,0.45),NumberSequenceKeypoint.new(1,1)})
 
+-- shimmer
 local GlassShimmer=Instance.new("Frame",MainFrame)
 GlassShimmer.Size=UDim2.new(1.5,0,0,1.5) GlassShimmer.Position=UDim2.new(-0.25,0,0,1.5)
 GlassShimmer.BorderSizePixel=0 GlassShimmer.ZIndex=3
 local ShimGrad=Instance.new("UIGradient",GlassShimmer)
-ShimGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(150,220,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,255,255))})
+ShimGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(200,215,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,255,255))})
+ShimGrad.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.5,0.6),NumberSequenceKeypoint.new(1,1)})
 task.spawn(function()
     while task.wait(0.05) do
         if not MainFrame or not MainFrame.Parent then break end
-        pcall(function() ShimGrad.Offset=Vector2.new(math.sin(tick()*1.0)*0.5,0) end)
+        pcall(function() ShimGrad.Offset=Vector2.new(math.sin(tick()*0.9)*0.5,0) end)
     end
 end)
 
+-- border stroke สีธีม ใส
 local UIStroke=Instance.new("UIStroke",MainFrame)
-UIStroke.Thickness=1.5 UIStroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+UIStroke.Thickness=1.2 UIStroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
 local UIGradientStroke=Instance.new("UIGradient",UIStroke)
 UIGradientStroke.Color=ColorSequence.new({
-    ColorSequenceKeypoint.new(0,Color3.fromRGB(255,182,217)),
-    ColorSequenceKeypoint.new(0.33,Color3.fromRGB(180,0,255)),
-    ColorSequenceKeypoint.new(0.66,Color3.fromRGB(0,220,255)),
-    ColorSequenceKeypoint.new(1,Color3.fromRGB(255,182,217)),
+    ColorSequenceKeypoint.new(0,Color3.fromRGB(200,180,240)),
+    ColorSequenceKeypoint.new(0.33,Color3.fromRGB(160,0,235)),
+    ColorSequenceKeypoint.new(0.66,Color3.fromRGB(0,190,230)),
+    ColorSequenceKeypoint.new(1,Color3.fromRGB(200,180,240)),
 })
+UIGradientStroke.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.4),NumberSequenceKeypoint.new(0.5,0.1),NumberSequenceKeypoint.new(1,0.4)})
 
--- [FIX] Dynamic Glass Reflection ด้วย ViewportFrame
-local GlassRefraction=Instance.new("Frame",MainFrame)
-GlassRefraction.Size=UDim2.new(1,0,0.5,0) GlassRefraction.Position=UDim2.new(0,0,0,0)
-GlassRefraction.BackgroundColor3=Color3.fromRGB(200,235,255) GlassRefraction.BackgroundTransparency=0.97
-GlassRefraction.BorderSizePixel=0 GlassRefraction.ZIndex=0 GlassRefraction.Visible=false
-Instance.new("UICorner",GlassRefraction).CornerRadius=UDim.new(0,16)
-local RefrGrad=Instance.new("UIGradient",GlassRefraction)
-RefrGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(220,245,255)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(200,230,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(180,215,255))})
-RefrGrad.Rotation=135
-
--- Dynamic Glass ViewportFrame (สะท้อน workspace จริง)
+-- Dynamic Glass ViewportFrame
 local GlassViewport=Instance.new("ViewportFrame",MainFrame)
 GlassViewport.Size=UDim2.new(1,0,1,0) GlassViewport.Position=UDim2.new(0,0,0,0)
-GlassViewport.BackgroundTransparency=1 GlassViewport.ImageTransparency=0.88
+GlassViewport.BackgroundTransparency=1 GlassViewport.ImageTransparency=0.92
 GlassViewport.BorderSizePixel=0 GlassViewport.ZIndex=0 GlassViewport.Visible=false
--- clone camera เข้า viewport
 local vpCam=Instance.new("Camera",GlassViewport)
 GlassViewport.CurrentCamera=vpCam
--- อัปเดต viewport camera ตาม main camera
 task.spawn(function()
     while task.wait(0.05) do
         if not GlassViewport or not GlassViewport.Parent then break end
@@ -781,8 +878,8 @@ task.spawn(function()
 end)
 
 local GlassHighlight=Instance.new("Frame",MainFrame)
-GlassHighlight.Size=UDim2.new(0.88,0,0,1) GlassHighlight.Position=UDim2.new(0.06,0,0,2)
-GlassHighlight.BackgroundColor3=Color3.fromRGB(255,255,255) GlassHighlight.BackgroundTransparency=0.8
+GlassHighlight.Size=UDim2.new(0.88,0,0,1) GlassHighlight.Position=UDim2.new(0.06,0,0,1.5)
+GlassHighlight.BackgroundColor3=Color3.fromRGB(255,255,255) GlassHighlight.BackgroundTransparency=0.6
 GlassHighlight.BorderSizePixel=0 GlassHighlight.ZIndex=4 GlassHighlight.Visible=false
 Instance.new("UICorner",GlassHighlight).CornerRadius=UDim.new(1,0)
 
@@ -798,45 +895,46 @@ local TitleSep=Instance.new("Frame",TitleBar)
 TitleSep.Size=UDim2.new(1,0,0,1) TitleSep.Position=UDim2.new(0,0,1,-1)
 TitleSep.BorderSizePixel=0 TitleSep.ZIndex=5
 local tsepGrad=Instance.new("UIGradient",TitleSep)
-tsepGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(0,0,0)),ColorSequenceKeypoint.new(0.3,Color3.fromRGB(180,0,255)),ColorSequenceKeypoint.new(0.7,Color3.fromRGB(0,220,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(0,0,0))})
-tsepGrad.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.3,0.38),NumberSequenceKeypoint.new(0.7,0.38),NumberSequenceKeypoint.new(1,1)})
+tsepGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(200,200,220)),ColorSequenceKeypoint.new(0.3,Color3.fromRGB(160,0,235)),ColorSequenceKeypoint.new(0.7,Color3.fromRGB(0,190,230)),ColorSequenceKeypoint.new(1,Color3.fromRGB(200,200,220))})
+tsepGrad.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.3,0.35),NumberSequenceKeypoint.new(0.7,0.35),NumberSequenceKeypoint.new(1,1)})
 
 local TitleLabel=Instance.new("TextLabel",TitleBar)
 TitleLabel.Size=UDim2.new(0.6,0,1,0) TitleLabel.Position=UDim2.new(0,12,0,0)
-TitleLabel.BackgroundTransparency=1 TitleLabel.Text="✦ MYTHICAL SHADER v5.6"
-TitleLabel.TextColor3=Color3.fromRGB(255,255,255) TitleLabel.TextSize=11
+TitleLabel.BackgroundTransparency=1 TitleLabel.Text="✦ MYTHICAL SHADER v5.7"
+-- [FIX] text สีเข้มบน UI ขาว
+TitleLabel.TextColor3=Color3.fromRGB(40,35,55) TitleLabel.TextSize=11
 TitleLabel.Font=Enum.Font.Code TitleLabel.TextXAlignment=Enum.TextXAlignment.Left TitleLabel.ZIndex=6
 
 local MinBtn=Instance.new("TextButton",TitleBar)
 MinBtn.Size=UDim2.new(0,26,0,26) MinBtn.Position=UDim2.new(1,-32,0.5,-13)
-MinBtn.BackgroundColor3=Color3.fromRGB(28,22,42) MinBtn.BackgroundTransparency=0.1
--- [NEW] minimize = ⭐ ดวงดาว
-MinBtn.Text="⭐" MinBtn.TextColor3=Color3.fromRGB(255,220,80) MinBtn.Font=Enum.Font.Code MinBtn.TextSize=14 MinBtn.ZIndex=6
+MinBtn.BackgroundColor3=Color3.fromRGB(230,225,245) MinBtn.BackgroundTransparency=0.15
+MinBtn.Text="⭐" MinBtn.TextColor3=Color3.fromRGB(200,160,0) MinBtn.Font=Enum.Font.Code MinBtn.TextSize=14 MinBtn.ZIndex=6
 Instance.new("UICorner",MinBtn).CornerRadius=UDim.new(0,7)
-Instance.new("UIStroke",MinBtn).Color=Color3.fromRGB(80,65,100)
+local minStroke=Instance.new("UIStroke",MinBtn) minStroke.Color=Color3.fromRGB(180,170,210) minStroke.Thickness=1
 spring(MinBtn)
 
 local SizeBtn=Instance.new("TextButton",TitleBar)
 SizeBtn.Size=UDim2.new(0,46,0,21) SizeBtn.Position=UDim2.new(1,-86,0.5,-10)
-SizeBtn.BackgroundColor3=Color3.fromRGB(18,14,28) SizeBtn.BackgroundTransparency=0.1
-SizeBtn.TextColor3=Color3.fromRGB(0,220,255) SizeBtn.Font=Enum.Font.Code SizeBtn.TextSize=10 SizeBtn.ZIndex=6
+SizeBtn.BackgroundColor3=Color3.fromRGB(225,222,242) SizeBtn.BackgroundTransparency=0.15
+SizeBtn.TextColor3=Color3.fromRGB(80,60,160) SizeBtn.Font=Enum.Font.Code SizeBtn.TextSize=10 SizeBtn.ZIndex=6
 Instance.new("UICorner",SizeBtn).CornerRadius=UDim.new(0,6)
-Instance.new("UIStroke",SizeBtn).Color=Color3.fromRGB(80,60,110)
+local szStroke=Instance.new("UIStroke",SizeBtn) szStroke.Color=Color3.fromRGB(180,170,215) szStroke.Thickness=1
 spring(SizeBtn)
 
 -- ================================================================
--- SECTION 20: SIDEBAR + CONTENT
+-- SECTION 20: SIDEBAR + CONTENT (White Glass)
 -- ================================================================
 local Sidebar=Instance.new("ScrollingFrame",MainFrame)
 Sidebar.Size=UDim2.new(0,90,1,-36) Sidebar.Position=UDim2.new(0,0,0,36)
-Sidebar.BackgroundColor3=Color3.fromRGB(7,5,13) Sidebar.BackgroundTransparency=0.4
+-- [FIX] sidebar ขาวนวลใส
+Sidebar.BackgroundColor3=Color3.fromRGB(235,235,248) Sidebar.BackgroundTransparency=0.35
 Sidebar.BorderSizePixel=0 Sidebar.ScrollBarThickness=2
-Sidebar.ScrollBarImageColor3=Color3.fromRGB(120,0,200)
+Sidebar.ScrollBarImageColor3=Color3.fromRGB(160,0,235)
 Sidebar.ScrollingDirection=Enum.ScrollingDirection.Y Sidebar.ElasticBehavior=Enum.ElasticBehavior.Always
 
 local SidebarLine=Instance.new("Frame",MainFrame)
 SidebarLine.Size=UDim2.new(0,1,1,-36) SidebarLine.Position=UDim2.new(0,90,0,36)
-SidebarLine.BackgroundColor3=Color3.fromRGB(60,40,90) SidebarLine.BorderSizePixel=0
+SidebarLine.BackgroundColor3=Color3.fromRGB(200,195,225) SidebarLine.BorderSizePixel=0
 
 local ContentArea=Instance.new("Frame",MainFrame)
 ContentArea.Size=UDim2.new(1,-91,1,-36) ContentArea.Position=UDim2.new(0,91,0,36)
@@ -848,7 +946,7 @@ ContentArea.BackgroundTransparency=1 ContentArea.ClipsDescendants=true
 local function makeTab()
     local s=Instance.new("ScrollingFrame",ContentArea)
     s.Size=UDim2.new(1,0,1,0) s.BackgroundTransparency=1 s.BorderSizePixel=0
-    s.ScrollBarThickness=3 s.ScrollBarImageColor3=Color3.fromRGB(180,0,255)
+    s.ScrollBarThickness=3 s.ScrollBarImageColor3=Color3.fromRGB(160,0,235)
     s.CanvasSize=UDim2.new(0,0,0,600) s.ScrollingDirection=Enum.ScrollingDirection.Y
     s.ElasticBehavior=Enum.ElasticBehavior.Always s.Visible=false s.ClipsDescendants=true
     return s
@@ -871,7 +969,7 @@ local TAB_DEFS={
 }
 
 -- ================================================================
--- SECTION 22: TAB BUTTONS
+-- SECTION 22: TAB BUTTONS (White Glass โทน)
 -- ================================================================
 local tabButtons={} local activeTab=nil
 local BTN_H,BTN_GAP=26,30
@@ -879,11 +977,13 @@ local BTN_H,BTN_GAP=26,30
 for i,def in ipairs(TAB_DEFS) do
     local Btn=Instance.new("TextButton",Sidebar)
     Btn.Size=UDim2.new(1,-8,0,BTN_H) Btn.Position=UDim2.new(0,4,0,(i-1)*BTN_GAP+6)
-    Btn.BackgroundColor3=Color3.fromRGB(18,14,28) Btn.BackgroundTransparency=0.45
-    Btn.Text=def.icon.." "..def.text Btn.TextColor3=Color3.fromRGB(150,150,168)
+    Btn.BackgroundColor3=Color3.fromRGB(220,218,240) Btn.BackgroundTransparency=0.42
+    Btn.Text=def.icon.." "..def.text
+    -- [FIX] text สีเข้ม
+    Btn.TextColor3=Color3.fromRGB(80,72,110)
     Btn.Font=Enum.Font.SourceSansBold Btn.TextSize=10
     Instance.new("UICorner",Btn).CornerRadius=UDim.new(0,7)
-    local bs=Instance.new("UIStroke",Btn) bs.Thickness=1 bs.Color=Color3.fromRGB(48,35,72) bs.Transparency=0.5
+    local bs=Instance.new("UIStroke",Btn) bs.Thickness=1 bs.Color=Color3.fromRGB(185,178,218) bs.Transparency=0.45
     spring(Btn)
     table.insert(tabButtons,{btn=Btn,tab=def.tab})
 end
@@ -895,15 +995,15 @@ local function refreshTabButtons()
         local s=bd.btn:FindFirstChildOfClass("UIStroke")
         if bd.tab==activeTab then
             if theme.glass then
-                tween(bd.btn,{BackgroundColor3=Color3.fromRGB(155,205,238),BackgroundTransparency=0.55,TextColor3=Color3.fromRGB(195,238,255)},SMOOTH)
-                if s then tween(s,{Color=Color3.fromRGB(175,222,255),Transparency=0.1},SMOOTH) end
+                tw(bd.btn,{BackgroundColor3=Color3.fromRGB(200,228,248),BackgroundTransparency=0.18,TextColor3=Color3.fromRGB(40,100,160)},SMOOTH)
+                if s then tw(s,{Color=Color3.fromRGB(140,200,240),Transparency=0.1},SMOOTH) end
             else
-                tween(bd.btn,{BackgroundColor3=theme.primary,BackgroundTransparency=0.08,TextColor3=Color3.fromRGB(255,255,255)},SMOOTH)
-                if s then tween(s,{Color=theme.secondary,Transparency=0.2},SMOOTH) end
+                tw(bd.btn,{BackgroundColor3=theme.primary,BackgroundTransparency=0.08,TextColor3=Color3.fromRGB(255,255,255)},SMOOTH)
+                if s then tw(s,{Color=theme.secondary,Transparency=0.2},SMOOTH) end
             end
         else
-            tween(bd.btn,{BackgroundColor3=Color3.fromRGB(18,14,28),BackgroundTransparency=0.45,TextColor3=Color3.fromRGB(150,150,168)},SMOOTH)
-            if s then tween(s,{Color=Color3.fromRGB(48,35,72),Transparency=0.5},SMOOTH) end
+            tw(bd.btn,{BackgroundColor3=Color3.fromRGB(220,218,240),BackgroundTransparency=0.42,TextColor3=Color3.fromRGB(80,72,110)},SMOOTH)
+            if s then tw(s,{Color=Color3.fromRGB(185,178,218),Transparency=0.45},SMOOTH) end
         end
     end
 end
@@ -912,13 +1012,13 @@ local function switchTab(targetTab)
     if activeTab==targetTab then return end
     if activeTab then
         local old=activeTab
-        tween(old,{Position=UDim2.new(-0.08,0,0,0)},TweenInfo.new(0.12,Enum.EasingStyle.Quart,Enum.EasingDirection.In))
+        tw(old,{Position=UDim2.new(-0.07,0,0,0)},TweenInfo.new(0.11,Enum.EasingStyle.Quart,Enum.EasingDirection.In))
         task.delay(0.08,function() if old then old.Visible=false old.Position=UDim2.new(0,0,0,0) end end)
     end
     activeTab=targetTab
     refreshTabButtons()
-    targetTab.Position=UDim2.new(0.08,0,0,0) targetTab.Visible=true
-    tween(targetTab,{Position=UDim2.new(0,0,0,0)},TweenInfo.new(0.22,Enum.EasingStyle.Back,Enum.EasingDirection.Out))
+    targetTab.Position=UDim2.new(0.07,0,0,0) targetTab.Visible=true
+    tw(targetTab,{Position=UDim2.new(0,0,0,0)},TweenInfo.new(0.2,Enum.EasingStyle.Back,Enum.EasingDirection.Out))
 end
 
 for _,bd in pairs(tabButtons) do bd.btn.MouseButton1Click:Connect(function() switchTab(bd.tab) end) end
@@ -950,38 +1050,33 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 -- ================================================================
--- SECTION 24: MINIMIZE (ย่อสุด = ⭐ โลโก้ดาว)
+-- SECTION 24: MINIMIZE (ดาว ⭐)
 -- ================================================================
 local isMinimized=false
-local starBtn=nil  -- minimize to star
-
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized=not isMinimized
     if isMinimized then
-        -- ซ่อน UI ทั้งหมด
         TitleLabel.Visible=false Sidebar.Visible=false ContentArea.Visible=false
         SidebarLine.Visible=false TitleSep.Visible=false
-        -- ย่อเหลือแค่ปุ่มดาว
-        tween(MainFrame,{Size=UDim2.new(0,38,0,38),BackgroundTransparency=0.05,BackgroundColor3=Color3.fromRGB(20,16,32)},
-            TweenInfo.new(0.3,Enum.EasingStyle.Back,Enum.EasingDirection.In))
+        tw(MainFrame,{Size=UDim2.new(0,40,0,40),BackgroundColor3=Color3.fromRGB(240,238,252),BackgroundTransparency=0.05},
+            TweenInfo.new(0.28,Enum.EasingStyle.Back,Enum.EasingDirection.In))
         MinBtn.Size=UDim2.new(1,-4,1,-4) MinBtn.Position=UDim2.new(0,2,0,2)
-        MinBtn.Text="⭐" MinBtn.TextSize=22
-        -- pulse animation
+        MinBtn.TextSize=22
+        -- pulse
         task.spawn(function()
             while isMinimized do
-                tween(MinBtn,{TextColor3=Color3.fromRGB(255,220,80)},TweenInfo.new(0.6))
-                task.wait(0.6)
-                tween(MinBtn,{TextColor3=Color3.fromRGB(200,160,40)},TweenInfo.new(0.6))
-                task.wait(0.6)
+                tw(MinBtn,{TextColor3=Color3.fromRGB(220,170,0)},TweenInfo.new(0.7))
+                task.wait(0.7)
+                tw(MinBtn,{TextColor3=Color3.fromRGB(255,215,50)},TweenInfo.new(0.7))
+                task.wait(0.7)
             end
         end)
     else
-        -- restore
-        tween(MainFrame,{Size=UDim2.new(0,332,0,272),BackgroundTransparency=0.22,BackgroundColor3=Color3.fromRGB(9,7,15)},
-            TweenInfo.new(0.35,Enum.EasingStyle.Back,Enum.EasingDirection.Out))
+        tw(MainFrame,{Size=UDim2.new(0,332,0,272),BackgroundColor3=Color3.fromRGB(240,242,248),BackgroundTransparency=0.12},
+            TweenInfo.new(0.32,Enum.EasingStyle.Back,Enum.EasingDirection.Out))
         MinBtn.Size=UDim2.new(0,26,0,26) MinBtn.Position=UDim2.new(1,-32,0.5,-13)
-        MinBtn.Text="⭐" MinBtn.TextSize=14 MinBtn.TextColor3=Color3.fromRGB(255,220,80)
-        task.delay(0.2,function()
+        MinBtn.TextSize=14 MinBtn.TextColor3=Color3.fromRGB(200,160,0)
+        task.delay(0.18,function()
             Sidebar.Visible=true ContentArea.Visible=true TitleLabel.Visible=true
             SidebarLine.Visible=true TitleSep.Visible=true
         end)
@@ -989,27 +1084,30 @@ MinBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================================================================
--- SECTION 25: TOGGLE HELPER
+-- SECTION 25: TOGGLE HELPER (White Glass สี)
 -- ================================================================
 local function createToggle(parent,text,order,defaultVal,callback)
     local F=Instance.new("Frame",parent)
     F.Size=UDim2.new(1,-16,0,30) F.Position=UDim2.new(0,8,0,(order-1)*36+6) F.BackgroundTransparency=1
     local L=Instance.new("TextLabel",F)
     L.Size=UDim2.new(0.68,0,1,0) L.BackgroundTransparency=1 L.Text=text
-    L.TextColor3=Color3.fromRGB(215,215,228) L.TextSize=11 L.Font=Enum.Font.SourceSans L.TextXAlignment=Enum.TextXAlignment.Left
+    -- [FIX] text สีเข้มบน UI ขาว
+    L.TextColor3=Color3.fromRGB(50,42,70) L.TextSize=11 L.Font=Enum.Font.SourceSans L.TextXAlignment=Enum.TextXAlignment.Left
     local TB=Instance.new("TextButton",F)
     TB.Size=UDim2.new(0,46,0,22) TB.Position=UDim2.new(1,-46,0.5,-11)
-    TB.BackgroundColor3=defaultVal and COLOR_THEMES[currentThemeIndex].primary or Color3.fromRGB(36,26,50)
+    TB.BackgroundColor3=defaultVal and COLOR_THEMES[currentThemeIndex].primary or Color3.fromRGB(200,198,218)
     TB.BackgroundTransparency=0.1 TB.Text=defaultVal and "ON" or "OFF"
-    TB.TextColor3=Color3.fromRGB(255,255,255) TB.Font=Enum.Font.SourceSansBold TB.TextSize=10
+    TB.TextColor3=defaultVal and Color3.fromRGB(255,255,255) or Color3.fromRGB(80,72,110)
+    TB.Font=Enum.Font.SourceSansBold TB.TextSize=10
     Instance.new("UICorner",TB).CornerRadius=UDim.new(0,11)
-    Instance.new("UIStroke",TB).Color=Color3.fromRGB(100,80,140)
+    local tbs=Instance.new("UIStroke",TB) tbs.Color=Color3.fromRGB(180,175,210) tbs.Thickness=1
     spring(TB)
     local cur=defaultVal
     TB.MouseButton1Click:Connect(function()
         cur=not cur
-        tween(TB,{BackgroundColor3=cur and COLOR_THEMES[currentThemeIndex].primary or Color3.fromRGB(36,26,50)},SMOOTH_BACK)
+        tw(TB,{BackgroundColor3=cur and COLOR_THEMES[currentThemeIndex].primary or Color3.fromRGB(200,198,218)},SMOOTH_BACK)
         TB.Text=cur and "ON" or "OFF"
+        TB.TextColor3=cur and Color3.fromRGB(255,255,255) or Color3.fromRGB(80,72,110)
         pcall(function() callback(cur) end)
     end)
     return TB
@@ -1020,7 +1118,7 @@ local function autoCanvas(scroll,n,h,gap,pad)
 end
 
 -- ================================================================
--- SECTION 26: BALL SLIDER (โปร)
+-- SECTION 26: BALL SLIDER (White Glass, กดไม่ลดความทึบ)
 -- ================================================================
 local allSliderBalls={}
 
@@ -1030,61 +1128,82 @@ local function makeBallSlider(parent,yPos,labelText,defRel,changeFn)
     local container=Instance.new("Frame",parent)
     container.Size=UDim2.new(1,-14,0,46)
     container.Position=UDim2.new(0,7,0,yPos)
-    container.BackgroundColor3=Color3.fromRGB(13,10,21)
-    container.BackgroundTransparency=0.32
+    -- [FIX] container ขาวนวล frosted
+    container.BackgroundColor3=Color3.fromRGB(245,245,252)
+    container.BackgroundTransparency=0.22
     container.BorderSizePixel=0
     Instance.new("UICorner",container).CornerRadius=UDim.new(0,9)
     local cstroke=Instance.new("UIStroke",container)
-    cstroke.Thickness=1 cstroke.Color=Color3.fromRGB(62,48,90) cstroke.Transparency=0.42
+    cstroke.Thickness=1 cstroke.Color=Color3.fromRGB(195,190,225) cstroke.Transparency=0.3
 
     local lbl=Instance.new("TextLabel",container)
     lbl.Size=UDim2.new(0.72,0,0,17) lbl.Position=UDim2.new(0,10,0,3)
     lbl.BackgroundTransparency=1 lbl.Text=labelText
-    lbl.TextColor3=Color3.fromRGB(212,214,232) lbl.TextSize=10
+    lbl.TextColor3=Color3.fromRGB(50,42,70) lbl.TextSize=10
     lbl.Font=Enum.Font.SourceSansBold lbl.TextXAlignment=Enum.TextXAlignment.Left
 
     local valLbl=Instance.new("TextLabel",container)
     valLbl.Size=UDim2.new(0.28,-8,0,17) valLbl.Position=UDim2.new(0.72,0,0,3)
     valLbl.BackgroundTransparency=1 valLbl.Text=math.floor(defRel*100).."%"
-    valLbl.TextColor3=theme.secondary valLbl.TextSize=10
+    valLbl.TextColor3=theme.primary valLbl.TextSize=10
     valLbl.Font=Enum.Font.Code valLbl.TextXAlignment=Enum.TextXAlignment.Right
 
     local track=Instance.new("Frame",container)
     track.Size=UDim2.new(1,-20,0,8) track.Position=UDim2.new(0,10,0,27)
-    track.BackgroundColor3=Color3.fromRGB(16,12,28) track.BackgroundTransparency=0.15 track.BorderSizePixel=0
+    track.BackgroundColor3=Color3.fromRGB(210,208,232) track.BackgroundTransparency=0.2 track.BorderSizePixel=0
     Instance.new("UICorner",track).CornerRadius=UDim.new(0,4)
 
+    -- tick marks
     for ti=0,8 do
         local tk=Instance.new("Frame",track)
-        tk.Size=UDim2.new(0,1,ti%2==0 and 0.65 or 0.42,0)
-        tk.Position=UDim2.new(ti/8,0,ti%2==0 and 0.17 or 0.29,0)
-        tk.BackgroundColor3=Color3.fromRGB(192,192,205) tk.BackgroundTransparency=ti%2==0 and 0.3 or 0.56 tk.BorderSizePixel=0
+        tk.Size=UDim2.new(0,1,ti%2==0 and 0.62 or 0.4,0)
+        tk.Position=UDim2.new(ti/8,0,ti%2==0 and 0.19 or 0.3,0)
+        tk.BackgroundColor3=Color3.fromRGB(160,155,195)
+        tk.BackgroundTransparency=ti%2==0 and 0.25 or 0.52 tk.BorderSizePixel=0
     end
 
     local fill=Instance.new("Frame",track)
     fill.Size=UDim2.new(defRel,0,1,0) fill.BackgroundColor3=Color3.fromRGB(255,255,255) fill.BorderSizePixel=0
     Instance.new("UICorner",fill).CornerRadius=UDim.new(0,4)
     local fillGrad=Instance.new("UIGradient",fill)
-    fillGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(228,228,236)),ColorSequenceKeypoint.new(1,theme.primary)})
+    fillGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(230,228,242)),ColorSequenceKeypoint.new(1,theme.primary)})
 
-    -- shadow ใต้ลูก
     local ballShadow=Instance.new("Frame",track)
-    ballShadow.Size=UDim2.new(0,16,0,7) ballShadow.Position=UDim2.new(defRel,-8,1,-3)
-    ballShadow.BackgroundColor3=Color3.fromRGB(0,0,0) ballShadow.BackgroundTransparency=0.6
+    ballShadow.Size=UDim2.new(0,15,0,6) ballShadow.Position=UDim2.new(defRel,-7.5,1,-2.5)
+    ballShadow.BackgroundColor3=Color3.fromRGB(80,60,120) ballShadow.BackgroundTransparency=0.72
     ballShadow.BorderSizePixel=0 ballShadow.ZIndex=4
     Instance.new("UICorner",ballShadow).CornerRadius=UDim.new(1,0)
 
-    -- ลูกบอล gradient ซ้าย(ขาว)→ขวา(ธีม)
+    -- [FIX] ลูกบอล: ขาว→สีธีม ซ้ายขวา ไม่ลดความทึบตอนกด
     local ball=Instance.new("TextButton",track)
     ball.Size=UDim2.new(0,20,0,20) ball.Position=UDim2.new(defRel,-10,0.5,-10)
-    ball.BackgroundColor3=Color3.fromRGB(245,245,252) ball.Text="" ball.BorderSizePixel=0 ball.ZIndex=6
+    ball.BackgroundColor3=Color3.fromRGB(248,248,255) ball.Text="" ball.BorderSizePixel=0 ball.ZIndex=6
     Instance.new("UICorner",ball).CornerRadius=UDim.new(1,0)
     local ballGrad=Instance.new("UIGradient",ball)
-    ballGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(248,248,255)),ColorSequenceKeypoint.new(1,theme.ball)})
+    ballGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(1,theme.ball)})
     ballGrad.Rotation=0
     local ballStroke=Instance.new("UIStroke",ball)
-    ballStroke.Color=lerpC(theme.primary,Color3.fromRGB(58,42,98),0.45) ballStroke.Thickness=2.0
-    spring(ball) addBounceOnHold(ball)
+    ballStroke.Color=lerpC(theme.primary,Color3.fromRGB(120,100,180),0.4) ballStroke.Thickness=2.0
+
+    -- [FIX] spring แบบไม่ลด BackgroundTransparency
+    pcall(function()
+        local us=ball:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",ball)
+        us.Scale=1.0
+        ball.MouseEnter:Connect(function() pcall(function() tw(us,{Scale=1.1},SMOOTH_BACK) end) end)
+        ball.MouseLeave:Connect(function() pcall(function() tw(us,{Scale=1.0},SMOOTH) end) end)
+        ball.InputBegan:Connect(function(i)
+            if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+                -- [FIX] แค่ scale ลง ไม่ลด transparency
+                pcall(function() tw(us,{Scale=0.9},SMOOTH_FAST) end)
+            end
+        end)
+        ball.InputEnded:Connect(function(i)
+            if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+                pcall(function() tw(us,{Scale=1.0},SMOOTH_BACK) end)
+            end
+        end)
+    end)
+    addBounceOnHold(ball)
 
     local sliderRef={fill=fill,fillGrad=fillGrad,ball=ball,ballGrad=ballGrad,ballStroke=ballStroke,valLbl=valLbl,ballShadow=ballShadow}
     table.insert(allSliderBalls,sliderRef)
@@ -1112,14 +1231,15 @@ local function makeBallSlider(parent,yPos,labelText,defRel,changeFn)
         if i.UserInputType~=Enum.UserInputType.MouseMovement and i.UserInputType~=Enum.UserInputType.Touch then return end
         local rel=math.clamp((i.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
         if math.abs(rel-lastRel)<0.002 then return end
+        -- กลิ้ง
         pcall(function() ball.Rotation=ball.Rotation+(rel-lastRel)*360*2 end)
         lastRel=rel
         fill.Size=UDim2.new(rel,0,1,0)
         ball.Position=UDim2.new(rel,-10,0.5,-10)
-        ballShadow.Position=UDim2.new(rel,-8,1,-3)
+        ballShadow.Position=UDim2.new(rel,-7.5,1,-2.5)
         valLbl.Text=math.floor(rel*100).."%"
         local ct=COLOR_THEMES[currentThemeIndex]
-        fillGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(228,228,236)),ColorSequenceKeypoint.new(1,lerpC(Color3.fromRGB(170,170,185),ct.primary,rel))})
+        fillGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(230,228,242)),ColorSequenceKeypoint.new(1,lerpC(Color3.fromRGB(190,185,218),ct.primary,rel))})
         pcall(function() changeFn(rel) end)
     end)
 
@@ -1130,16 +1250,17 @@ local function refreshAllSliders()
     local theme=COLOR_THEMES[currentThemeIndex]
     for _,s in ipairs(allSliderBalls) do
         pcall(function()
-            s.fillGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(228,228,236)),ColorSequenceKeypoint.new(1,theme.primary)})
-            s.ballGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(248,248,255)),ColorSequenceKeypoint.new(1,theme.ball)})
-            s.ballStroke.Color=lerpC(theme.primary,Color3.fromRGB(58,42,98),0.45)
-            s.valLbl.TextColor3=theme.secondary
+            s.fillGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(230,228,242)),ColorSequenceKeypoint.new(1,theme.primary)})
+            s.ballGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(1,theme.ball)})
+            s.ballStroke.Color=lerpC(theme.primary,Color3.fromRGB(120,100,180),0.4)
+            s.valLbl.TextColor3=theme.primary
         end)
     end
 end
 
 -- ================================================================
 -- SECTION 27: GRAPHICS TAB
+-- (Dawn/Sunset กลับมาเป็น toggle ใน Graphics tab)
 -- ================================================================
 createToggle(TabGfx,"Depth of Field",1,dofEnabled,function(val)
     dofEnabled=val local d=Lighting:FindFirstChild("StellarDOF") if d then d.Enabled=val end
@@ -1152,23 +1273,42 @@ end)
 createToggle(TabGfx,"Anti-Blue Gloss",3,antiBlueGloss,function(val)
     antiBlueGloss=val if pbrEnabled then task.spawn(runPBRScan) end
 end)
--- [FIX] Horror สวยขึ้น: เพิ่ม color grading เขียว เงาหนาแน่น
-createToggle(TabGfx,"☠️ Horror Fog",4,false,function(val)
-    horrorFogEnabled=val
+
+-- [NEW] Dawn toggle ใน Graphics
+createToggle(TabGfx,"🌄 Dawn Mode",4,false,function(val)
+    dawnEnabled=val
     if val then
-        ModeText="Status: Horror" BorderColorNow=Color3.fromRGB(80,160,40)
-        clearRainParticles()
-        applyLighting(PROFILES.HORROR)
-        pcall(function()
-            Lighting.FogStart=4 Lighting.FogEnd=80
-            Lighting.FogColor=Color3.fromRGB(8,14,4)
-            Lighting.Ambient=Color3.fromRGB(5,8,2)
-            Lighting.GlobalShadows=true
-        end)
+        sunsetEnabled=false  -- ปิด sunset ถ้าเปิด dawn
+        ModeText="Status: Dawn" BorderColorNow=Color3.fromRGB(255,180,200)
+        applyLighting(PROFILES.DAWN)
+        pcall(function() Lighting.ClockTime=5.5 end)
         applyCinematicBlend()
-    else resetFogLighting() ModeText="Status: Normal" end
+    else
+        if not horrorFogEnabled and not rainEnabled and not heavenlyEnabled and not sunsetEnabled then
+            resetFogLighting()
+        end
+        ModeText="Status: Normal"
+    end
 end)
-createToggle(TabGfx,"🌧 Rain Mode",5,false,function(val)
+
+-- [NEW] Sunset toggle ใน Graphics
+createToggle(TabGfx,"🌅 Sunset Mode",5,false,function(val)
+    sunsetEnabled=val
+    if val then
+        dawnEnabled=false  -- ปิด dawn ถ้าเปิด sunset
+        ModeText="Status: Sunset" BorderColorNow=Color3.fromRGB(255,150,60)
+        applyLighting(PROFILES.GOLDEN)
+        pcall(function() Lighting.ClockTime=19 end)
+        applyCinematicBlend()
+    else
+        if not horrorFogEnabled and not rainEnabled and not heavenlyEnabled and not dawnEnabled then
+            resetFogLighting()
+        end
+        ModeText="Status: Normal"
+    end
+end)
+
+createToggle(TabGfx,"🌧 Rain Mode",6,false,function(val)
     rainEnabled=val
     if val then
         ModeText="Status: Rainy" BorderColorNow=Color3.fromRGB(100,160,255)
@@ -1181,46 +1321,72 @@ createToggle(TabGfx,"🌧 Rain Mode",5,false,function(val)
         ModeText="Status: Normal"
     end
 end)
--- [FIX] Heavenly สวยขึ้น: bloom สูง ทอง particle ลอย
-createToggle(TabGfx,"👼 Heavenly Mode",6,false,function(val)
+
+createToggle(TabGfx,"👼 Heavenly Mode",7,false,function(val)
     heavenlyEnabled=val
     if val then
         ModeText="Status: Heavenly" BorderColorNow=Color3.fromRGB(255,240,120)
         applyLighting(PROFILES.HEAVENLY)
-        pcall(function()
-            Lighting.FogStart=500 Lighting.FogEnd=2000
-            Lighting.FogColor=Color3.fromRGB(225,235,255)
-            Lighting.ClockTime=12
-        end)
+        pcall(function() Lighting.FogStart=500 Lighting.FogEnd=2000 Lighting.FogColor=Color3.fromRGB(225,235,255) Lighting.ClockTime=12 end)
         applyCinematicBlend()
     else
         if not horrorFogEnabled and not rainEnabled then resetFogLighting() end
         ModeText="Status: Normal"
     end
 end)
-createToggle(TabGfx,"💨 Wind Effect",7,false,function(val)
+
+-- Horror toggle + เลือกโทน
+createToggle(TabGfx,"☠️ Horror Fog",8,false,function(val)
+    horrorFogEnabled=val
+    if val then
+        local p=horrorBlue and PROFILES.HORROR_BLUE or PROFILES.HORROR_GREEN
+        local fc=horrorBlue and Color3.fromRGB(4,5,14) or Color3.fromRGB(8,14,4)
+        ModeText=horrorBlue and "Status: Horror (Dark)" or "Status: Horror (Green)"
+        BorderColorNow=horrorBlue and Color3.fromRGB(40,50,180) or Color3.fromRGB(80,160,40)
+        clearRainParticles()
+        applyLighting(p)
+        pcall(function() Lighting.FogStart=4 Lighting.FogEnd=80 Lighting.FogColor=fc Lighting.Ambient=fc Lighting.GlobalShadows=true end)
+        applyCinematicBlend()
+    else resetFogLighting() ModeText="Status: Normal" end
+end)
+
+-- [NEW] Horror tone toggle (เขียว/น้ำเงินดำ)
+createToggle(TabGfx,"💙 Horror: Blue Dark",9,false,function(val)
+    horrorBlue=val
+    -- ถ้า horror เปิดอยู่ให้ apply ทันที
+    if horrorFogEnabled then
+        local p=val and PROFILES.HORROR_BLUE or PROFILES.HORROR_GREEN
+        local fc=val and Color3.fromRGB(4,5,14) or Color3.fromRGB(8,14,4)
+        ModeText=val and "Status: Horror (Dark)" or "Status: Horror (Green)"
+        BorderColorNow=val and Color3.fromRGB(40,50,180) or Color3.fromRGB(80,160,40)
+        applyLighting(p)
+        pcall(function() Lighting.FogStart=4 Lighting.FogEnd=80 Lighting.FogColor=fc Lighting.Ambient=fc end)
+    end
+end)
+
+createToggle(TabGfx,"💨 Wind Effect",10,false,function(val)
     windEnabled=val
     if val then ModeText="Status: Windy" BorderColorNow=Color3.fromRGB(160,220,180) startWind()
     else clearWind() end
 end)
-createToggle(TabGfx,"🌟 Neon Edge",8,false,function(val)
+
+createToggle(TabGfx,"🌟 Neon Edge",11,false,function(val)
     neonEdgeEnabled=val
     if val then startNeonEdge(ScreenGui) else clearNeonEdge() end
 end)
 
 local LiveTimeLabel=Instance.new("TextLabel",TabGfx)
-LiveTimeLabel.Size=UDim2.new(1,-16,0,20) LiveTimeLabel.Position=UDim2.new(0,8,0,8*36+10)
+LiveTimeLabel.Size=UDim2.new(1,-16,0,20) LiveTimeLabel.Position=UDim2.new(0,8,0,11*36+10)
 LiveTimeLabel.BackgroundTransparency=1 LiveTimeLabel.Text="Status: Loaded"
-LiveTimeLabel.TextColor3=Color3.fromRGB(180,0,255) LiveTimeLabel.TextSize=11
+LiveTimeLabel.TextColor3=Color3.fromRGB(120,0,200) LiveTimeLabel.TextSize=11
 LiveTimeLabel.Font=Enum.Font.Code LiveTimeLabel.TextXAlignment=Enum.TextXAlignment.Center
-autoCanvas(TabGfx,8,30,6,32)
+autoCanvas(TabGfx,11,30,6,32)
 
 -- ================================================================
--- SECTION 28: SKYBOX TAB (bulletproof fix)
+-- SECTION 28: SKYBOX TAB (bulletproof)
 -- ================================================================
 local function applySkyPreset(preset)
-    -- [FIX] disconnect guard ชั่วคราว สร้าง Sky ใหม่ แล้ว reconnect
-    if skyGuardConn then skyGuardConn:Disconnect() end
+    pcall(function() skyGuardConn:Disconnect() end)
     pcall(function()
         for _,child in ipairs(Lighting:GetChildren()) do
             if child:IsA("Sky") then child:Destroy() end
@@ -1228,7 +1394,8 @@ local function applySkyPreset(preset)
     end)
     task.wait(0.05)
     local sky=Instance.new("Sky",Lighting) sky.Name="StellarSky"
-    pcall(function() sky.SkyboxBk=preset.bk sky.SkyboxDn=preset.dn sky.SkyboxFt=preset.ft
+    pcall(function()
+        sky.SkyboxBk=preset.bk sky.SkyboxDn=preset.dn sky.SkyboxFt=preset.ft
         sky.SkyboxLf=preset.lf sky.SkyboxRt=preset.rt sky.SkyboxUp=preset.up
         sky.StarCount=preset.star sky.CelestialBodiesShown=true
         if preset.moonSize then sky.MoonAngularSize=preset.moonSize end
@@ -1236,22 +1403,25 @@ local function applySkyPreset(preset)
         if preset.brightness then Lighting.Brightness=preset.brightness end
         if preset.ambient then Lighting.OutdoorAmbient=preset.ambient end
     end)
-    -- reconnect guard
-    skyGuardConn=Lighting.ChildAdded:Connect(function(child)
-        if child:IsA("Sky") and child.Name~="StellarSky" then
-            task.defer(function() pcall(function() child:Destroy() end) end)
-        end
-    end)
+    connectSkyGuard()
 end
 
-local ResetSkyBtn=Instance.new("TextButton",TabSky)
-ResetSkyBtn.Size=UDim2.new(1,-16,0,26) ResetSkyBtn.Position=UDim2.new(0,8,0,6)
-ResetSkyBtn.BackgroundColor3=Color3.fromRGB(55,38,78) ResetSkyBtn.BackgroundTransparency=0.2
-ResetSkyBtn.Text="↺ Reset to Default Sky" ResetSkyBtn.TextColor3=Color3.fromRGB(200,200,222)
-ResetSkyBtn.Font=Enum.Font.SourceSansBold ResetSkyBtn.TextSize=11
-Instance.new("UICorner",ResetSkyBtn).CornerRadius=UDim.new(0,7) spring(ResetSkyBtn)
+local function makeSkyBtn(parent,text,y)
+    local b=Instance.new("TextButton",parent)
+    b.Size=UDim2.new(1,-16,0,28) b.Position=UDim2.new(0,8,0,y)
+    b.BackgroundColor3=Color3.fromRGB(235,232,252) b.BackgroundTransparency=0.2
+    b.Text=text b.TextColor3=Color3.fromRGB(50,42,80)
+    b.Font=Enum.Font.SourceSans b.TextSize=12
+    Instance.new("UICorner",b).CornerRadius=UDim.new(0,7)
+    local sk=Instance.new("UIStroke",b) sk.Color=Color3.fromRGB(180,172,218) sk.Thickness=1
+    spring(b)
+    return b
+end
+
+local ResetSkyBtn=makeSkyBtn(TabSky,"↺ Reset to Default Sky",6)
+ResetSkyBtn.BackgroundColor3=Color3.fromRGB(225,218,248)
 ResetSkyBtn.MouseButton1Click:Connect(function()
-    if skyGuardConn then skyGuardConn:Disconnect() end
+    pcall(function() skyGuardConn:Disconnect() end)
     pcall(function()
         for _,child in ipairs(Lighting:GetChildren()) do
             if child:IsA("Sky") then child:Destroy() end
@@ -1262,37 +1432,26 @@ ResetSkyBtn.MouseButton1Click:Connect(function()
         sky.MoonTextureId="rbxassetid://6444320592" sky.MoonAngularSize=11
         sky.StarCount=8000 sky.CelestialBodiesShown=true
     end)
-    skyGuardConn=Lighting.ChildAdded:Connect(function(child)
-        if child:IsA("Sky") and child.Name~="StellarSky" then
-            task.defer(function() pcall(function() child:Destroy() end) end)
-        end
-    end)
+    connectSkyGuard()
 end)
 
 for i,preset in ipairs(SKY_PRESETS) do
-    local SkyBtn=Instance.new("TextButton",TabSky)
-    SkyBtn.Size=UDim2.new(1,-16,0,28) SkyBtn.Position=UDim2.new(0,8,0,i*34+4)
-    SkyBtn.BackgroundColor3=Color3.fromRGB(26,20,40) SkyBtn.BackgroundTransparency=0.25
-    SkyBtn.Text=preset.name SkyBtn.TextColor3=Color3.fromRGB(232,232,255)
-    SkyBtn.Font=Enum.Font.SourceSans SkyBtn.TextSize=12
-    Instance.new("UICorner",SkyBtn).CornerRadius=UDim.new(0,7)
-    local sk=Instance.new("UIStroke",SkyBtn) sk.Color=Color3.fromRGB(82,58,112) sk.Thickness=1
-    spring(SkyBtn)
+    local sb=makeSkyBtn(TabSky,preset.name,i*34+4)
     local _p=preset
-    SkyBtn.MouseButton1Click:Connect(function() applySkyPreset(_p) end)
+    sb.MouseButton1Click:Connect(function() applySkyPreset(_p) end)
 end
 
 local skyBotY=(#SKY_PRESETS+1)*34+10
 local InputField=Instance.new("TextBox",TabSky)
 InputField.Size=UDim2.new(1,-16,0,28) InputField.Position=UDim2.new(0,8,0,skyBotY)
-InputField.BackgroundColor3=Color3.fromRGB(16,12,26) InputField.BackgroundTransparency=0.22
+InputField.BackgroundColor3=Color3.fromRGB(235,232,252) InputField.BackgroundTransparency=0.18
 InputField.PlaceholderText="Asset ID หรือ rbxassetid://..." InputField.Text=""
-InputField.TextColor3=Color3.fromRGB(0,220,255) InputField.Font=Enum.Font.Code InputField.TextSize=11
+InputField.TextColor3=Color3.fromRGB(80,0,180) InputField.Font=Enum.Font.Code InputField.TextSize=11
 Instance.new("UICorner",InputField).CornerRadius=UDim.new(0,7)
 
 local ApplyCustomBtn=Instance.new("TextButton",TabSky)
 ApplyCustomBtn.Size=UDim2.new(1,-16,0,28) ApplyCustomBtn.Position=UDim2.new(0,8,0,skyBotY+34)
-ApplyCustomBtn.BackgroundColor3=Color3.fromRGB(180,0,255) ApplyCustomBtn.BackgroundTransparency=0.15
+ApplyCustomBtn.BackgroundColor3=Color3.fromRGB(160,0,235) ApplyCustomBtn.BackgroundTransparency=0.12
 ApplyCustomBtn.Text="✦ Apply Custom ID" ApplyCustomBtn.TextColor3=Color3.fromRGB(255,255,255)
 ApplyCustomBtn.Font=Enum.Font.SourceSansBold ApplyCustomBtn.TextSize=12
 Instance.new("UICorner",ApplyCustomBtn).CornerRadius=UDim.new(0,7) spring(ApplyCustomBtn)
@@ -1312,19 +1471,19 @@ local BoostInfo=Instance.new("TextLabel",TabBoost)
 BoostInfo.Size=UDim2.new(1,-16,0,38) BoostInfo.Position=UDim2.new(0,8,0,8)
 BoostInfo.BackgroundTransparency=1 BoostInfo.TextWrapped=true
 BoostInfo.Text="⚡ ลด material ปิด shadow ชั่วคราว เพิ่ม FPS"
-BoostInfo.TextColor3=Color3.fromRGB(155,155,175) BoostInfo.TextSize=10 BoostInfo.Font=Enum.Font.SourceSans
+BoostInfo.TextColor3=Color3.fromRGB(80,72,100) BoostInfo.TextSize=10 BoostInfo.Font=Enum.Font.SourceSans
 
 local BoostButton=Instance.new("TextButton",TabBoost)
 BoostButton.Size=UDim2.new(1,-16,0,46) BoostButton.Position=UDim2.new(0,8,0,52)
-BoostButton.BackgroundColor3=Color3.fromRGB(255,52,92) BoostButton.BackgroundTransparency=0.12
+BoostButton.BackgroundColor3=Color3.fromRGB(220,45,80) BoostButton.BackgroundTransparency=0.1
 BoostButton.Text="ENABLE FPS BOOST" BoostButton.TextColor3=Color3.fromRGB(255,255,255)
 BoostButton.Font=Enum.Font.SourceSansBold BoostButton.TextSize=13
 Instance.new("UICorner",BoostButton).CornerRadius=UDim.new(0,9)
-local bbs=Instance.new("UIStroke",BoostButton) bbs.Color=Color3.fromRGB(255,115,145) bbs.Thickness=1.2
+local bbs=Instance.new("UIStroke",BoostButton) bbs.Color=Color3.fromRGB(255,120,150) bbs.Thickness=1.2
 spring(BoostButton)
 BoostButton.MouseButton1Click:Connect(function()
     local s=not isFpsBoostOn
-    tween(BoostButton,{BackgroundColor3=s and Color3.fromRGB(0,205,98) or Color3.fromRGB(255,52,92)},SMOOTH_BACK)
+    tw(BoostButton,{BackgroundColor3=s and Color3.fromRGB(0,190,88) or Color3.fromRGB(220,45,80)},SMOOTH_BACK)
     BoostButton.Text=s and "DISABLE FPS BOOST" or "ENABLE FPS BOOST"
     task.spawn(function() triggerFPSBoost(s) end)
 end)
@@ -1336,61 +1495,72 @@ autoCanvas(TabBoost,3,30,6,20)
 local ThemeTitle=Instance.new("TextLabel",TabTheme)
 ThemeTitle.Size=UDim2.new(1,-16,0,18) ThemeTitle.Position=UDim2.new(0,8,0,4)
 ThemeTitle.BackgroundTransparency=1 ThemeTitle.Text="💎 UI Color Theme"
-ThemeTitle.TextColor3=Color3.fromRGB(200,200,212) ThemeTitle.TextSize=11
+ThemeTitle.TextColor3=Color3.fromRGB(50,42,70) ThemeTitle.TextSize=11
 ThemeTitle.Font=Enum.Font.SourceSansBold ThemeTitle.TextXAlignment=Enum.TextXAlignment.Left
 
 local activeThemeLabel=Instance.new("TextLabel",TabTheme)
 activeThemeLabel.Size=UDim2.new(1,-16,0,14) activeThemeLabel.Position=UDim2.new(0,8,0,22)
 activeThemeLabel.BackgroundTransparency=1 activeThemeLabel.Text="Active: Purple"
-activeThemeLabel.TextColor3=Color3.fromRGB(180,0,255) activeThemeLabel.TextSize=10
+activeThemeLabel.TextColor3=Color3.fromRGB(160,0,235) activeThemeLabel.TextSize=10
 activeThemeLabel.Font=Enum.Font.Code activeThemeLabel.TextXAlignment=Enum.TextXAlignment.Left
 
 local rainbowActive=false local glassRotThread=nil
 
 local function applyTheme(index)
     local theme=COLOR_THEMES[index] currentThemeIndex=index
-    tween(activeThemeLabel,{TextColor3=theme.primary},SMOOTH)
+    tw(activeThemeLabel,{TextColor3=theme.primary},SMOOTH)
     activeThemeLabel.Text="Active: "..theme.name
-    tween(UIStroke,{Color=theme.primary},SMOOTH)
+    tw(UIStroke,{Color=theme.primary},SMOOTH)
     refreshTabButtons() refreshAllSliders()
-    tween(MinBtn,{TextColor3=Color3.fromRGB(255,220,80)},SMOOTH)
     BorderColorNow=theme.primary
 
     if theme.glass then
-        GlassRefraction.Visible=true GlassHighlight.Visible=true GlassViewport.Visible=true
-        tween(MainFrame,{BackgroundColor3=Color3.fromRGB(7,13,20),BackgroundTransparency=0.1},SMOOTH)
-        UIStroke.Thickness=2.0 SidebarLine.BackgroundColor3=Color3.fromRGB(155,205,238)
+        GlassHighlight.Visible=true GlassViewport.Visible=true
+        tw(MainFrame,{BackgroundColor3=Color3.fromRGB(235,242,252),BackgroundTransparency=0.06},SMOOTH)
+        UIStroke.Thickness=1.8
+        SidebarLine.BackgroundColor3=Color3.fromRGB(165,205,240)
+        Sidebar.BackgroundColor3=Color3.fromRGB(228,238,252)
         if glassRotThread then pcall(function() task.cancel(glassRotThread) end) end
         glassRotThread=task.spawn(function()
             while currentThemeIndex==index and COLOR_THEMES[currentThemeIndex].glass do
                 pcall(function()
                     UIGradientStroke.Rotation=(tick()*16)%360
-                    local h=((tick()*20)%360)/360
-                    local c=Color3.fromHSV(h,0.28,1)
-                    UIGradientStroke.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(200,235,255)),ColorSequenceKeypoint.new(0.5,c),ColorSequenceKeypoint.new(1,Color3.fromRGB(180,220,255))})
+                    local h=((tick()*18)%360)/360
+                    local c=Color3.fromHSV(h,0.4,1)
+                    UIGradientStroke.Color=ColorSequence.new({
+                        ColorSequenceKeypoint.new(0,Color3.fromRGB(190,215,248)),
+                        ColorSequenceKeypoint.new(0.5,c),
+                        ColorSequenceKeypoint.new(1,Color3.fromRGB(170,205,245)),
+                    })
                 end)
                 task.wait(0.05)
             end
         end)
     else
         if glassRotThread then pcall(function() task.cancel(glassRotThread) end) glassRotThread=nil end
-        GlassRefraction.Visible=false GlassHighlight.Visible=false GlassViewport.Visible=false
-        tween(MainFrame,{BackgroundColor3=Color3.fromRGB(9,7,15),BackgroundTransparency=0.22},SMOOTH)
-        UIStroke.Thickness=1.5 UIGradientStroke.Rotation=0
-        SidebarLine.BackgroundColor3=Color3.fromRGB(60,40,90)
-        UIGradientStroke.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,theme.primary),ColorSequenceKeypoint.new(0.5,theme.secondary),ColorSequenceKeypoint.new(1,theme.primary)})
+        GlassHighlight.Visible=false GlassViewport.Visible=false
+        tw(MainFrame,{BackgroundColor3=Color3.fromRGB(240,242,248),BackgroundTransparency=0.12},SMOOTH)
+        UIStroke.Thickness=1.2 UIGradientStroke.Rotation=0
+        SidebarLine.BackgroundColor3=Color3.fromRGB(200,195,225)
+        Sidebar.BackgroundColor3=Color3.fromRGB(235,235,248)
+        UIGradientStroke.Color=ColorSequence.new({
+            ColorSequenceKeypoint.new(0,Color3.fromRGB(200,180,240)),
+            ColorSequenceKeypoint.new(0.5,theme.secondary),
+            ColorSequenceKeypoint.new(1,Color3.fromRGB(200,180,240)),
+        })
+        UIGradientStroke.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.4),NumberSequenceKeypoint.new(0.5,0.1),NumberSequenceKeypoint.new(1,0.4)})
     end
 end
 
 for i,theme in ipairs(COLOR_THEMES) do
     local TB=Instance.new("TextButton",TabTheme)
     TB.Size=UDim2.new(1,-16,0,27) TB.Position=UDim2.new(0,8,0,(i-1)*32+42)
-    TB.BackgroundColor3=theme.glass and Color3.fromRGB(155,205,238) or theme.primary
-    TB.BackgroundTransparency=theme.glass and 0.48 or 0.2
+    TB.BackgroundColor3=theme.glass and Color3.fromRGB(195,222,245) or theme.primary
+    TB.BackgroundTransparency=theme.glass and 0.32 or 0.18
     TB.Text=theme.name TB.TextColor3=Color3.fromRGB(255,255,255)
     TB.Font=Enum.Font.SourceSansBold TB.TextSize=11
     Instance.new("UICorner",TB).CornerRadius=UDim.new(0,7)
-    local ts=Instance.new("UIStroke",TB) ts.Color=Color3.fromRGB(255,255,255) ts.Transparency=0.62
+    local ts=Instance.new("UIStroke",TB) ts.Color=Color3.fromRGB(255,255,255) ts.Transparency=0.6
     spring(TB)
     TB.MouseButton1Click:Connect(function()
         if theme.name=="Rainbow" then rainbowActive=true else rainbowActive=false applyTheme(i) end
@@ -1404,15 +1574,16 @@ autoCanvas(TabTheme,#COLOR_THEMES,27,5,52)
 local FPSTitle=Instance.new("TextLabel",TabFPS)
 FPSTitle.Size=UDim2.new(1,-16,0,16) FPSTitle.Position=UDim2.new(0,8,0,4)
 FPSTitle.BackgroundTransparency=1 FPSTitle.Text="⚡ FPS Cap Settings"
-FPSTitle.TextColor3=Color3.fromRGB(200,200,212) FPSTitle.TextSize=11
+FPSTitle.TextColor3=Color3.fromRGB(50,42,70) FPSTitle.TextSize=11
 FPSTitle.Font=Enum.Font.SourceSansBold FPSTitle.TextXAlignment=Enum.TextXAlignment.Left
 
 local FPSValueLabel=Instance.new("TextLabel",TabFPS)
 FPSValueLabel.Size=UDim2.new(1,-16,0,23) FPSValueLabel.Position=UDim2.new(0,8,0,22)
-FPSValueLabel.BackgroundColor3=Color3.fromRGB(10,8,20) FPSValueLabel.BackgroundTransparency=0.12
-FPSValueLabel.Text="Cap: 60 FPS" FPSValueLabel.TextColor3=Color3.fromRGB(0,220,255)
+FPSValueLabel.BackgroundColor3=Color3.fromRGB(238,235,255) FPSValueLabel.BackgroundTransparency=0.12
+FPSValueLabel.Text="Cap: 60 FPS" FPSValueLabel.TextColor3=Color3.fromRGB(80,0,180)
 FPSValueLabel.TextSize=12 FPSValueLabel.Font=Enum.Font.Code FPSValueLabel.TextXAlignment=Enum.TextXAlignment.Center
 Instance.new("UICorner",FPSValueLabel).CornerRadius=UDim.new(0,7)
+Instance.new("UIStroke",FPSValueLabel).Color=Color3.fromRGB(190,182,225)
 
 local FPS_MIN,FPS_MAX=10,120
 makeBallSlider(TabFPS,50,"FPS Cap (10-120)",0.45,function(r)
@@ -1427,9 +1598,11 @@ presetRow.Size=UDim2.new(1,-16,0,22) presetRow.Position=UDim2.new(0,8,0,102) pre
 for i,fps in ipairs(presets) do
     local pb=Instance.new("TextButton",presetRow)
     pb.Size=UDim2.new(1/#presets,-2,1,0) pb.Position=UDim2.new((i-1)/#presets,1,0,0)
-    pb.BackgroundColor3=fps==165 and Color3.fromRGB(255,172,0) or Color3.fromRGB(26,20,40)
-    pb.BackgroundTransparency=0.18 pb.Text=fps==165 and "165!" or tostring(fps)
-    pb.TextColor3=Color3.fromRGB(255,255,255) pb.Font=Enum.Font.Code pb.TextSize=9
+    pb.BackgroundColor3=fps==165 and Color3.fromRGB(220,158,0) or Color3.fromRGB(225,222,245)
+    pb.BackgroundTransparency=0.15
+    pb.Text=fps==165 and "165!" or tostring(fps)
+    pb.TextColor3=fps==165 and Color3.fromRGB(255,255,255) or Color3.fromRGB(60,52,90)
+    pb.Font=Enum.Font.Code pb.TextSize=9
     Instance.new("UICorner",pb).CornerRadius=UDim.new(0,4) spring(pb)
     pb.MouseButton1Click:Connect(function()
         targetFpsCap=fps FPSValueLabel.Text="Cap: "..fps..(fps==165 and " FPS ⚡" or " FPS")
@@ -1439,7 +1612,7 @@ end
 
 local ShowFPSPopupBtn=Instance.new("TextButton",TabFPS)
 ShowFPSPopupBtn.Size=UDim2.new(1,-16,0,28) ShowFPSPopupBtn.Position=UDim2.new(0,8,0,130)
-ShowFPSPopupBtn.BackgroundColor3=Color3.fromRGB(0,170,252) ShowFPSPopupBtn.BackgroundTransparency=0.1
+ShowFPSPopupBtn.BackgroundColor3=Color3.fromRGB(0,155,235) ShowFPSPopupBtn.BackgroundTransparency=0.1
 ShowFPSPopupBtn.Text="📊 Show FPS Monitor" ShowFPSPopupBtn.TextColor3=Color3.fromRGB(255,255,255)
 ShowFPSPopupBtn.Font=Enum.Font.SourceSansBold ShowFPSPopupBtn.TextSize=11
 Instance.new("UICorner",ShowFPSPopupBtn).CornerRadius=UDim.new(0,7) spring(ShowFPSPopupBtn)
@@ -1451,7 +1624,7 @@ TabFPS.CanvasSize=UDim2.new(0,0,0,170)
 local CinTitle=Instance.new("TextLabel",TabCinema)
 CinTitle.Size=UDim2.new(1,-16,0,16) CinTitle.Position=UDim2.new(0,8,0,4)
 CinTitle.BackgroundTransparency=1 CinTitle.Text="🎬 Cinema — ซ้อนได้ทุก mode"
-CinTitle.TextColor3=Color3.fromRGB(178,182,208) CinTitle.TextSize=10
+CinTitle.TextColor3=Color3.fromRGB(80,72,110) CinTitle.TextSize=10
 CinTitle.Font=Enum.Font.SourceSansBold CinTitle.TextXAlignment=Enum.TextXAlignment.Left
 
 createToggle(TabCinema,"Cinematic Mode",1,false,function(val)
@@ -1491,16 +1664,16 @@ TabCinema.CanvasSize=UDim2.new(0,0,0,BY+#cinSliders*52+20)
 -- ================================================================
 -- SECTION 33: PARTICLE TAB
 -- ================================================================
-local function makeSectionLabel(parent,text,y)
+local function makeSLabel(parent,text,y)
     local l=Instance.new("TextLabel",parent)
     l.Size=UDim2.new(1,-16,0,18) l.Position=UDim2.new(0,8,0,y)
     l.BackgroundTransparency=1 l.Text=text
-    l.TextColor3=Color3.fromRGB(200,200,215) l.TextSize=11
+    l.TextColor3=Color3.fromRGB(50,42,70) l.TextSize=11
     l.Font=Enum.Font.SourceSansBold l.TextXAlignment=Enum.TextXAlignment.Left
     return l
 end
 
-makeSectionLabel(TabParticle,"✨ Particle Effects",6)
+makeSLabel(TabParticle,"✨ Particle Effects",6)
 createToggle(TabParticle,"🌸 Sakura Blossom",2,false,function(val)
     sakuraEnabled=val
     if val then ModeText="Status: Sakura" BorderColorNow=Color3.fromRGB(255,160,200) createSakura()
@@ -1532,62 +1705,64 @@ createToggle(TabParticle,"💨 Wind",6,false,function(val)
     windEnabled=val if val then startWind() else clearWind() end
 end)
 
--- Meteor color
 local mcY=7*36+14
-makeSectionLabel(TabParticle,"☄️ Meteor Color:",mcY)
+makeSLabel(TabParticle,"☄️ Meteor Color:",mcY)
 local meteorColors={{name="Gold",c=Color3.fromRGB(255,220,80)},{name="Blue",c=Color3.fromRGB(120,180,255)},{name="Red",c=Color3.fromRGB(255,100,80)},{name="White",c=Color3.fromRGB(255,255,255)}}
 local mcRow=Instance.new("Frame",TabParticle)
 mcRow.Size=UDim2.new(1,-16,0,24) mcRow.Position=UDim2.new(0,8,0,mcY+20) mcRow.BackgroundTransparency=1
 for i,mc in ipairs(meteorColors) do
     local mb=Instance.new("TextButton",mcRow)
     mb.Size=UDim2.new(1/#meteorColors,-3,1,0) mb.Position=UDim2.new((i-1)/#meteorColors,2,0,0)
-    mb.BackgroundColor3=mc.c mb.BackgroundTransparency=0.18
-    mb.Text=mc.name mb.TextColor3=Color3.fromRGB(255,255,255) mb.TextSize=9 mb.Font=Enum.Font.Code
+    mb.BackgroundColor3=mc.c mb.BackgroundTransparency=0.15
+    mb.Text=mc.name mb.TextColor3=Color3.fromRGB(50,42,60) mb.TextSize=9 mb.Font=Enum.Font.Code
     Instance.new("UICorner",mb).CornerRadius=UDim.new(0,5) spring(mb)
     mb.MouseButton1Click:Connect(function() meteorColor=mc.c end)
 end
-
-makeBallSlider(TabParticle,mcY+52,"☄️ Meteor Rate",0.5,function(r) meteorInterval=lerpN(0.5,8,1-r) end)
+makeBallSlider(TabParticle,mcY+52,"☄️ Meteor Rate",0.5,function(r) meteorInterval=lerpN(0.4,7,1-r) end)
 makeBallSlider(TabParticle,mcY+104,"🌸 Sakura Density",0.4,function(r) sakuraCount=math.floor(lerpN(8,80,r)) if sakuraEnabled then createSakura() end end)
 makeBallSlider(TabParticle,mcY+156,"🌧 Rain Density",0.3,function(r) rainParticleCount=math.floor(lerpN(10,150,r)) if rainEnabled then createRainParticles() end end)
 makeBallSlider(TabParticle,mcY+208,"💨 Wind Strength",0.5,function(r) windStrength=r end)
-
 TabParticle.CanvasSize=UDim2.new(0,0,0,mcY+268)
 
 -- ================================================================
 -- SECTION 34: FPS POPUP
 -- ================================================================
 local FPSPopup=Instance.new("Frame",ScreenGui)
-FPSPopup.Name="FPSPopup" FPSPopup.Size=UDim2.new(0,108,0,74)
+FPSPopup.Name="FPSPopup" FPSPopup.Size=UDim2.new(0,110,0,76)
 FPSPopup.Position=UDim2.new(0.5,36,0.4,33)
-FPSPopup.BackgroundColor3=Color3.fromRGB(5,4,11) FPSPopup.BackgroundTransparency=0.05
+FPSPopup.BackgroundColor3=Color3.fromRGB(242,240,255) FPSPopup.BackgroundTransparency=0.06
 FPSPopup.BorderSizePixel=0 FPSPopup.ClipsDescendants=true FPSPopup.Visible=false FPSPopup.ZIndex=20
 Instance.new("UICorner",FPSPopup).CornerRadius=UDim.new(0,12)
 local FPSPopupStroke=Instance.new("UIStroke",FPSPopup)
-FPSPopupStroke.Thickness=1.5 FPSPopupStroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border FPSPopupStroke.Color=Color3.fromRGB(0,180,255)
+FPSPopupStroke.Thickness=1.2 FPSPopupStroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+FPSPopupStroke.Color=Color3.fromRGB(160,0,235)
 
 local PopupShim=Instance.new("Frame",FPSPopup)
-PopupShim.Size=UDim2.new(1.5,0,0,1.5) PopupShim.Position=UDim2.new(-0.25,0,0,0) PopupShim.BorderSizePixel=0 PopupShim.ZIndex=21
+PopupShim.Size=UDim2.new(1.5,0,0,1.5) PopupShim.Position=UDim2.new(-0.25,0,0,0)
+PopupShim.BorderSizePixel=0 PopupShim.ZIndex=21
 local PopupShimGrad=Instance.new("UIGradient",PopupShim)
-PopupShimGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(100,200,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,255,255))})
+PopupShimGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(0.5,Color3.fromRGB(200,215,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,255,255))})
+PopupShimGrad.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.5,0.55),NumberSequenceKeypoint.new(1,1)})
 task.spawn(function()
     while task.wait(0.06) do
         if not FPSPopup or not FPSPopup.Parent then break end
-        pcall(function() PopupShimGrad.Offset=Vector2.new(math.sin(tick()*1.8)*0.5,0) end)
+        pcall(function() PopupShimGrad.Offset=Vector2.new(math.sin(tick()*1.6)*0.5,0) end)
     end
 end)
 
 local PopupHeader=Instance.new("Frame",FPSPopup)
-PopupHeader.Size=UDim2.new(1,0,0,19) PopupHeader.BackgroundColor3=Color3.fromRGB(10,8,22) PopupHeader.BackgroundTransparency=0.25 PopupHeader.BorderSizePixel=0 PopupHeader.ZIndex=21
+PopupHeader.Size=UDim2.new(1,0,0,19) PopupHeader.BackgroundColor3=Color3.fromRGB(232,228,252)
+PopupHeader.BackgroundTransparency=0.15 PopupHeader.BorderSizePixel=0 PopupHeader.ZIndex=21
 
 local PopupTitle=Instance.new("TextLabel",PopupHeader)
 PopupTitle.Size=UDim2.new(1,-22,1,0) PopupTitle.Position=UDim2.new(0,7,0,0)
 PopupTitle.BackgroundTransparency=1 PopupTitle.Text="FPS Monitor"
-PopupTitle.TextColor3=Color3.fromRGB(0,220,255) PopupTitle.TextSize=9 PopupTitle.Font=Enum.Font.Code PopupTitle.TextXAlignment=Enum.TextXAlignment.Left PopupTitle.ZIndex=22
+PopupTitle.TextColor3=Color3.fromRGB(80,0,180) PopupTitle.TextSize=9
+PopupTitle.Font=Enum.Font.Code PopupTitle.TextXAlignment=Enum.TextXAlignment.Left PopupTitle.ZIndex=22
 
 local PopupCloseBtn=Instance.new("TextButton",PopupHeader)
 PopupCloseBtn.Size=UDim2.new(0,16,0,16) PopupCloseBtn.Position=UDim2.new(1,-18,0.5,-8)
-PopupCloseBtn.BackgroundColor3=Color3.fromRGB(195,26,55) PopupCloseBtn.BackgroundTransparency=0.08
+PopupCloseBtn.BackgroundColor3=Color3.fromRGB(210,30,60) PopupCloseBtn.BackgroundTransparency=0.1
 PopupCloseBtn.Text="×" PopupCloseBtn.TextColor3=Color3.fromRGB(255,255,255)
 PopupCloseBtn.Font=Enum.Font.SourceSansBold PopupCloseBtn.TextSize=12 PopupCloseBtn.ZIndex=23
 Instance.new("UICorner",PopupCloseBtn).CornerRadius=UDim.new(1,0) spring(PopupCloseBtn)
@@ -1595,22 +1770,25 @@ Instance.new("UICorner",PopupCloseBtn).CornerRadius=UDim.new(1,0) spring(PopupCl
 local PopupFPSBig=Instance.new("TextLabel",FPSPopup)
 PopupFPSBig.Size=UDim2.new(1,0,1,-30) PopupFPSBig.Position=UDim2.new(0,0,0,19)
 PopupFPSBig.BackgroundTransparency=1 PopupFPSBig.Text="--"
-PopupFPSBig.TextColor3=Color3.fromRGB(0,255,180) PopupFPSBig.TextScaled=true
+PopupFPSBig.TextColor3=Color3.fromRGB(0,175,100) PopupFPSBig.TextScaled=true
 PopupFPSBig.Font=Enum.Font.Code PopupFPSBig.TextXAlignment=Enum.TextXAlignment.Center PopupFPSBig.ZIndex=22
 
 local PopupBottomBar=Instance.new("Frame",FPSPopup)
 PopupBottomBar.Size=UDim2.new(1,0,0,12) PopupBottomBar.Position=UDim2.new(0,0,1,-12)
-PopupBottomBar.BackgroundColor3=Color3.fromRGB(8,6,18) PopupBottomBar.BackgroundTransparency=0.32 PopupBottomBar.BorderSizePixel=0 PopupBottomBar.ZIndex=22
+PopupBottomBar.BackgroundColor3=Color3.fromRGB(225,220,248) PopupBottomBar.BackgroundTransparency=0.25
+PopupBottomBar.BorderSizePixel=0 PopupBottomBar.ZIndex=22
 
 local PopupCapLabel=Instance.new("TextLabel",PopupBottomBar)
 PopupCapLabel.Size=UDim2.new(0.5,0,1,0) PopupCapLabel.Position=UDim2.new(0,4,0,0)
 PopupCapLabel.BackgroundTransparency=1 PopupCapLabel.Text="cap:60"
-PopupCapLabel.TextColor3=Color3.fromRGB(140,0,200) PopupCapLabel.TextSize=8 PopupCapLabel.Font=Enum.Font.Code PopupCapLabel.TextXAlignment=Enum.TextXAlignment.Left PopupCapLabel.ZIndex=23
+PopupCapLabel.TextColor3=Color3.fromRGB(120,0,180) PopupCapLabel.TextSize=8
+PopupCapLabel.Font=Enum.Font.Code PopupCapLabel.TextXAlignment=Enum.TextXAlignment.Left PopupCapLabel.ZIndex=23
 
 local PopupStatusLabel=Instance.new("TextLabel",PopupBottomBar)
 PopupStatusLabel.Size=UDim2.new(0.5,0,1,0) PopupStatusLabel.Position=UDim2.new(0.5,0,0,0)
 PopupStatusLabel.BackgroundTransparency=1 PopupStatusLabel.Text="normal"
-PopupStatusLabel.TextColor3=Color3.fromRGB(100,200,150) PopupStatusLabel.TextSize=8 PopupStatusLabel.Font=Enum.Font.Code PopupStatusLabel.TextXAlignment=Enum.TextXAlignment.Right PopupStatusLabel.ZIndex=23
+PopupStatusLabel.TextColor3=Color3.fromRGB(0,155,80) PopupStatusLabel.TextSize=8
+PopupStatusLabel.Font=Enum.Font.Code PopupStatusLabel.TextXAlignment=Enum.TextXAlignment.Right PopupStatusLabel.ZIndex=23
 
 addBounceOnHold(FPSPopup)
 
@@ -1632,18 +1810,18 @@ end)
 local function getUS() return FPSPopup:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",FPSPopup) end
 
 PopupCloseBtn.MouseButton1Click:Connect(function()
-    pcall(function() local s=getUS() s.Scale=1 tween(s,{Scale=0},TweenInfo.new(0.14,Enum.EasingStyle.Back,Enum.EasingDirection.In)) end)
-    task.delay(0.12,function() FPSPopup.Visible=false end)
+    pcall(function() local s=getUS() s.Scale=1 tw(s,{Scale=0},TweenInfo.new(0.13,Enum.EasingStyle.Back,Enum.EasingDirection.In)) end)
+    task.delay(0.11,function() FPSPopup.Visible=false end)
     ShowFPSPopupBtn.Text="📊 Show FPS Monitor"
 end)
 ShowFPSPopupBtn.MouseButton1Click:Connect(function()
     if FPSPopup.Visible then
-        pcall(function() local s=getUS() s.Scale=1 tween(s,{Scale=0},TweenInfo.new(0.14,Enum.EasingStyle.Back,Enum.EasingDirection.In)) end)
-        task.delay(0.12,function() FPSPopup.Visible=false end)
+        pcall(function() local s=getUS() s.Scale=1 tw(s,{Scale=0},TweenInfo.new(0.13,Enum.EasingStyle.Back,Enum.EasingDirection.In)) end)
+        task.delay(0.11,function() FPSPopup.Visible=false end)
         ShowFPSPopupBtn.Text="📊 Show FPS Monitor"
     else
         FPSPopup.Visible=true local s=getUS() s.Scale=0
-        tween(s,{Scale=1},TweenInfo.new(0.26,Enum.EasingStyle.Back,Enum.EasingDirection.Out))
+        tw(s,{Scale=1},TweenInfo.new(0.24,Enum.EasingStyle.Back,Enum.EasingDirection.Out))
         ShowFPSPopupBtn.Text="📊 Hide FPS Monitor"
     end
 end)
@@ -1678,7 +1856,7 @@ end
 local function applyGridSize(preset)
     local pw=gridPx(preset.w,"x") local ph=gridPx(preset.h,"y")
     updateUIVisibility(pw,ph)
-    tween(MainFrame,{Size=UDim2.new(0,math.max(pw,44),0,math.max(ph,30))},TweenInfo.new(0.32,Enum.EasingStyle.Back,Enum.EasingDirection.Out))
+    tw(MainFrame,{Size=UDim2.new(0,math.max(pw,44),0,math.max(ph,30))},TweenInfo.new(0.3,Enum.EasingStyle.Back,Enum.EasingDirection.Out))
 end
 
 SizeBtn.MouseButton1Click:Connect(function()
@@ -1690,16 +1868,19 @@ end)
 local ResizeHandle=Instance.new("TextButton",MainFrame)
 ResizeHandle.Size=UDim2.new(0,20,0,20) ResizeHandle.Position=UDim2.new(1,-20,1,-20)
 ResizeHandle.BackgroundTransparency=1 ResizeHandle.Text="◢"
-ResizeHandle.TextColor3=Color3.fromRGB(200,200,255) ResizeHandle.TextTransparency=0.5
+ResizeHandle.TextColor3=Color3.fromRGB(140,120,200) ResizeHandle.TextTransparency=0.4
 ResizeHandle.TextSize=13 ResizeHandle.Font=Enum.Font.SourceSansBold ResizeHandle.ZIndex=10
 
 local isResizing,resizeStart,resizeSize0=false,nil,nil
 ResizeHandle.InputBegan:Connect(function(i)
     if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
         isResizing=true resizeStart=i.Position resizeSize0=Vector2.new(MainFrame.Size.X.Offset,MainFrame.Size.Y.Offset)
-        tween(ResizeHandle,{TextTransparency=0},SMOOTH_FAST)
+        tw(ResizeHandle,{TextTransparency=0,TextColor3=Color3.fromRGB(100,60,180)},SMOOTH_FAST)
         i.Changed:Connect(function()
-            if i.UserInputState==Enum.UserInputState.End then isResizing=false tween(ResizeHandle,{TextTransparency=0.5},SMOOTH_FAST) end
+            if i.UserInputState==Enum.UserInputState.End then
+                isResizing=false
+                tw(ResizeHandle,{TextTransparency=0.4,TextColor3=Color3.fromRGB(140,120,200)},SMOOTH_FAST)
+            end
         end)
     end
 end)
@@ -1710,7 +1891,7 @@ UserInputService.InputChanged:Connect(function(i)
     local nW=math.clamp(resizeSize0.X+delta.X,44,800)
     local nH=math.clamp(resizeSize0.Y+delta.Y,30,600)
     SizeBtn.Text="Custom" updateUIVisibility(nW,nH)
-    tween(MainFrame,{Size=UDim2.new(0,nW,0,nH)},TweenInfo.new(0.04,Enum.EasingStyle.Linear))
+    tw(MainFrame,{Size=UDim2.new(0,nW,0,nH)},TweenInfo.new(0.04,Enum.EasingStyle.Linear))
 end)
 
 local lastVP=camera.ViewportSize
@@ -1733,11 +1914,12 @@ RunService.RenderStepped:Connect(function(dt)
     frameCount=frameCount+1 nextUpdate=nextUpdate+dt
 
     if rainbowActive then
-        rainbowHue=(rainbowHue+dt*70)%360
+        rainbowHue=(rainbowHue+dt*68)%360
         local col=Color3.fromHSV(rainbowHue/360,1,1)
         local col2=Color3.fromHSV(((rainbowHue+120)%360)/360,1,1)
         pcall(function()
             UIGradientStroke.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,col),ColorSequenceKeypoint.new(0.5,col2),ColorSequenceKeypoint.new(1,col)})
+            UIGradientStroke.Transparency=NumberSequence.new(0)
         end)
         BorderColorNow=col
         if activeThemeLabel then activeThemeLabel.TextColor3=col end
@@ -1751,17 +1933,17 @@ RunService.RenderStepped:Connect(function(dt)
             PopupFPSBig.Text=tostring(fps)
             PopupCapLabel.Text="cap:"..(targetFpsCap==165 and "165⚡" or tostring(targetFpsCap))
             local ratio=fps/math.max(targetFpsCap,1)
-            if ratio>=0.9 then PopupStatusLabel.Text="smooth" PopupStatusLabel.TextColor3=Color3.fromRGB(80,255,160)
-            elseif ratio>=0.6 then PopupStatusLabel.Text="ok" PopupStatusLabel.TextColor3=Color3.fromRGB(255,210,60)
-            else PopupStatusLabel.Text="low!" PopupStatusLabel.TextColor3=Color3.fromRGB(255,80,80) end
+            if ratio>=0.9 then PopupStatusLabel.Text="smooth" PopupStatusLabel.TextColor3=Color3.fromRGB(0,168,90)
+            elseif ratio>=0.6 then PopupStatusLabel.Text="ok" PopupStatusLabel.TextColor3=Color3.fromRGB(200,155,0)
+            else PopupStatusLabel.Text="low!" PopupStatusLabel.TextColor3=Color3.fromRGB(210,50,50) end
             local r=math.clamp(ratio,0,1)
-            PopupFPSBig.TextColor3=Color3.fromRGB(math.floor(lerpN(255,40,r)),math.floor(lerpN(60,255,r)),math.floor(lerpN(60,160,r)))
+            PopupFPSBig.TextColor3=Color3.fromRGB(math.floor(lerpN(210,0,r)),math.floor(lerpN(50,175,r)),math.floor(lerpN(50,100,r)))
         end
 
         if not rainbowActive and BorderColorNow~=lastBorderColor then
             lastBorderColor=BorderColorNow
-            tween(UIStroke,{Color=BorderColorNow},TweenInfo.new(0.35))
-            tween(FPSPopupStroke,{Color=BorderColorNow},TweenInfo.new(0.35))
+            tw(UIStroke,{Color=BorderColorNow},TweenInfo.new(0.32))
+            tw(FPSPopupStroke,{Color=BorderColorNow},TweenInfo.new(0.32))
         end
 
         frameCount=0 nextUpdate=0
@@ -1772,4 +1954,4 @@ end)
 -- SECTION 37: INIT
 -- ================================================================
 applyGridSize(SIZE_PRESETS[currentSizeIndex])
-print("✅ MYTHICAL SHADER v5.6 — Pro UI / Star Minimize / Sky Fix / Meteor+ / Horror+ / Heavenly+ / Glass Reflect!")
+print("✅ MYTHICAL SHADER v5.7 — White Glass UI / Dawn+Sunset in Graphics / Horror Blue / Ball Fix / Meteor Near / Sun Rays / Neon Edge Fix!")
