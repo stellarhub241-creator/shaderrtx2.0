@@ -2676,4 +2676,4 @@ applyGridSize(SIZE_PRESETS[currentSizeIndex])
 applyTheme(1) 
 reapplyActiveMode()
 
-print("✅ MYTHICAL SHADER v6.4 [PRO EDITION] - Massive Meteor & Sun / UI Opacity Control / Luxury Restored"
+print("✅ MYTHICAL SHADER v6.4 [PRO EDITION] - Massive Meteor & Sun / UI Opacity Control / Luxury Restored")
