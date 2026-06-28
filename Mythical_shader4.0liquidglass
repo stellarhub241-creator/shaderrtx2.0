@@ -973,6 +973,7 @@ StellarAI:register("wind",   0.1,  function() if State.windEnabled   then startW
 StellarAI:register("meteor", 0.5,  function() if State.meteorEnabled then startMeteor()         end end)
 StellarAI:register("sun",    0.05, function() if State.sunrayEnabled then startSunray()         end end)
 StellarAI:register("master", 0.3,  nil)
+
 -- ================================================================
 -- SECTION 18: UI ANIMATION FRAMEWORK
 -- ================================================================
