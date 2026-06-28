@@ -1746,9 +1746,14 @@ createToggle(TabGfx, "☠️ Horror Fog", 8, false, function(val)
     reapplyActiveMode() 
 end)
 
-createToggle(TabGfx, "💙 Horror: Blue Dark", 9, false, function(val) 
-    State.horrorBlue = val 
-    if State.horrorFogEnabled then reapplyActiveMode() end 
+createToggle(TabGfx, "💙 Horror: Blue Dark", 9, false, function(val)
+    State.horrorBlue = val
+    if State.horrorFogEnabled then
+        ModeText = val and "Status: Horror (Dark)" or "Status: Horror (Green)"
+        BorderColorNow = val and Color3.fromRGB(40, 50, 180) or Color3.fromRGB(80, 160, 40)
+        reapplyActiveMode()
+        if LiveTimeLabel then LiveTimeLabel.TextColor3 = BorderColorNow end
+    end
 end)
 
 createToggle(TabGfx, "💨 Wind Effect", 10, false, function(val) 
