@@ -2133,5 +2133,4 @@ applyBorderStyle("gradient", COLOR_THEMES[1].primary)
 reapplyActiveMode()
 
 print("✅ MYTHICAL SHADER v6.6 [ULTIMATE] — Sakura Part-based / Sun rays 3D / Wind fixed / Border clean / Horror enhanced / Meteor particles / StellarAI / StellarEngine")
-ENDOFFILE
-wc -l /home/claude/STELLARHUB_MYTHI
+
