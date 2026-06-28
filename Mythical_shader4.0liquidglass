@@ -2389,6 +2389,37 @@ PopupStatusLabel.TextSize = 8
 PopupStatusLabel.Font = Enum.Font.Code 
 PopupStatusLabel.TextXAlignment = Enum.TextXAlignment.Right 
 PopupStatusLabel.ZIndex = 23
+-- [เพิ่ม ResizeHandle ให้ FPSPopup ต่อจากบรรทัดที่สร้าง PopupCloseBtn เรียบร้อยแล้ว]
+
+local ResizeHandleFPS = Instance.new("TextButton", FPSPopup)
+ResizeHandleFPS.Size = UDim2.new(0, 14, 0, 14)
+ResizeHandleFPS.Position = UDim2.new(1, -14, 1, -14)
+ResizeHandleFPS.BackgroundTransparency = 1
+ResizeHandleFPS.Text = "◢"
+ResizeHandleFPS.TextColor3 = Color3.fromRGB(255,255,255)
+ResizeHandleFPS.TextSize = 10
+ResizeHandleFPS.ZIndex = 24
+
+local fpResizing, fpResStart, fpResSize = false, nil, nil
+ResizeHandleFPS.InputBegan:Connect(function(i)
+    if isTouchOrMouse(i.UserInputType) then
+        fpResizing = true
+        fpResStart = i.Position
+        fpResSize = Vector2.new(FPSPopup.Size.X.Offset, FPSPopup.Size.Y.Offset)
+        i.Changed:Connect(function()
+            if i.UserInputState.Name == "End" then fpResizing = false end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(i)
+    if fpResizing and (i.UserInputType.Name:match("MouseMovement") or i.UserInputType.Name:match("Touch")) then
+        local delta = i.Position - fpResStart
+        local nW = math.clamp(fpResSize.X + delta.X, 80, 400)
+        local nH = math.clamp(fpResSize.Y + delta.Y, 50, 300)
+        FPSPopup.Size = UDim2.new(0, nW, 0, nH)
+    end
+end)
 
 addBounceOnHold(FPSPopup)
 
