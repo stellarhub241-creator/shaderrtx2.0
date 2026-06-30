@@ -843,7 +843,7 @@ local function startWind()
 end
 
 -- ================================================================
--- SECTION 14: METEOR — Part ทำเอง หางยาว ระเบิด [REBUILT]
+-- SECTION 14: METEOR (v6.6 classic style — adapted to StellarA)
 -- ================================================================
 local meteorFolder=nil; local meteorConns={}; local meteorRunning=false
 
@@ -852,202 +852,124 @@ local function clearMeteor()
     for _,c in pairs(meteorConns) do pcall(function() c:Disconnect() end) end
     meteorConns={}
     if meteorFolder and meteorFolder.Parent then pcall(function() meteorFolder:Destroy() end) end
-    meteorFolder=nil; SAS:release("meteor")
+    meteorFolder=nil
+    SAS:release("meteor")
 end
 
 local function spawnOneMeteor()
     if not meteorFolder or not meteorFolder.Parent then return end
+    local q = SAS:getQuality("meteor")
     local cam=workspace.CurrentCamera; local cp=cam.CFrame.Position
-    local theme=COLOR_THEMES[State.currentThemeIndex]
-    local meteorC=State.meteorColor
+    local angle=math.random()*math.pi*2; local dist=math.random(500,800)
+    local sx=cp.X+math.cos(angle)*dist; local sy=cp.Y+math.random(300,500); local sz=cp.Z+math.sin(angle)*dist
+    local target=Vector3.new(cp.X+math.cos(angle+math.pi)*dist,cp.Y-math.random(50,100),cp.Z+math.sin(angle+math.pi)*dist)
+    local dir=(target-Vector3.new(sx,sy,sz)).Unit; local speed=math.random(250,450); local len=math.random(50,120)
 
-    -- spawn ไกลมาก เห็นชัด
-    local angle=math.random()*math.pi*2
-    local dist=math.random(800,1400)
-    local sx=cp.X+math.cos(angle)*dist
-    local sy=cp.Y+math.random(350,600)
-    local sz=cp.Z+math.sin(angle)*dist
+    -- Head
+    local head=Instance.new("Part",meteorFolder); head.Size=Vector3.new(5,5,5); head.Material=Enum.Material.Neon
+    head.Color=State.meteorColor; head.Transparency=0; head.CastShadow=false; head.Anchored=true; head.CanCollide=false
+    Instance.new("SpecialMesh",head).MeshType=Enum.MeshType.Sphere
 
-    local targetX=cp.X+math.cos(angle+math.pi)*math.random(200,500)
-    local targetY=cp.Y-math.random(80,150)
-    local targetZ=cp.Z+math.sin(angle+math.pi)*math.random(200,500)
-    local target=Vector3.new(targetX,targetY,targetZ)
-    local dir=(target-Vector3.new(sx,sy,sz)).Unit
-    local speed=math.random(380,620)
-    local maxLife=6.5
+    local pLight=Instance.new("PointLight",head); pLight.Color=State.meteorColor; pLight.Range=300; pLight.Brightness=4*q; pLight.Shadows=true
 
-    -- [HEAD] ใหญ่ สว่าง ตามธีม
-    local head=Instance.new("Part",meteorFolder)
-    head.Size=Vector3.new(9,9,9); head.Material=Enum.Material.Neon
-    head.Color=StellarFlu.meteorHeadColor(meteorC,0)
-    head.Transparency=0; head.CastShadow=false; head.Anchored=true; head.CanCollide=false
-    local hMesh=Instance.new("SpecialMesh",head); hMesh.MeshType=Enum.MeshType.Sphere
+    -- Trail body gradient สีสวย — ใช้ StellarA แทน StellarEngine
+    local body=Instance.new("Part",meteorFolder); body.Size=Vector3.new(2.5,2.5,len); body.Material=Enum.Material.Neon
+    body.Color=StellarA.lerpHSV(State.meteorColor,Color3.fromRGB(255,255,255),0.4)
+    body.Transparency=0.15; body.CastShadow=false; body.Anchored=true; body.CanCollide=false
 
-    -- PointLight ตามธีม
-    local pLight=Instance.new("PointLight",head)
-    pLight.Color=meteorC; pLight.Range=500; pLight.Brightness=8; pLight.Shadows=false
+    local tail=Instance.new("Part",meteorFolder); tail.Size=Vector3.new(1.5,1.5,len*2.8); tail.Material=Enum.Material.Neon
+    tail.Color=StellarA.lerpHSV(State.meteorColor,Color3.fromRGB(255,255,255),0.68)
+    tail.Transparency=0.42; tail.CastShadow=false; tail.Anchored=true; tail.CanCollide=false
 
-    -- [AURA] หัวออร่า
-    local aura=Instance.new("Part",meteorFolder)
-    aura.Size=Vector3.new(28,28,28); aura.Material=Enum.Material.Neon
-    aura.Color=meteorC; aura.Transparency=0.72
-    aura.CastShadow=false; aura.Anchored=true; aura.CanCollide=false
-    Instance.new("SpecialMesh",aura).MeshType=Enum.MeshType.Sphere
+    local tail2=Instance.new("Part",meteorFolder); tail2.Size=Vector3.new(0.6,0.6,len*5.5); tail2.Material=Enum.Material.Neon
+    tail2.Color=Color3.fromRGB(255,255,255); tail2.Transparency=0.75; tail2.CastShadow=false; tail2.Anchored=true; tail2.CanCollide=false
 
-    -- [TRAIL SEGMENTS] หางยาว 5 ชิ้น ไล่สี
-    local TRAIL_COUNT=5
-    local trails={}
-    local trailLens={55,110,200,340,520}
-    local trailSizes={4.5,3.2,2.2,1.4,0.8}
-    local trailAlphas={0.08,0.22,0.42,0.62,0.80}
-    for ti=1,TRAIL_COUNT do
-        local tr=Instance.new("Part",meteorFolder)
-        tr.Size=Vector3.new(trailSizes[ti],trailSizes[ti],trailLens[ti])
-        tr.Material=Enum.Material.Neon
-        -- [StellarFlu] trail color gradient
-        tr.Color=StellarFlu.meteorTrailColor((ti-1)/(TRAIL_COUNT-1), meteorC, 0)
-        tr.Transparency=trailAlphas[ti]
-        tr.CastShadow=false; tr.Anchored=true; tr.CanCollide=false
-        table.insert(trails,{part=tr,len=trailLens[ti],baseAlpha=trailAlphas[ti]})
-    end
+    local glow=Instance.new("Part",meteorFolder); glow.Size=Vector3.new(22,22,22); glow.Material=Enum.Material.Neon
+    glow.Color=State.meteorColor; glow.Transparency=0.78; glow.CastShadow=false; glow.Anchored=true; glow.CanCollide=false
+    Instance.new("SpecialMesh",glow).MeshType=Enum.MeshType.Sphere
 
-    -- [EXPLOSION PARTS] ระเบิดตอนจบ
-    local EXPLODE_COUNT=8
-    local explodeParts={}
-    for ei=1,EXPLODE_COUNT do
-        local ep=Instance.new("Part",meteorFolder)
-        ep.Size=Vector3.new(3,3,3); ep.Material=Enum.Material.Neon
-        ep.Color=StellarFlu.meteorTrailColor(ei/EXPLODE_COUNT, meteorC, 0)
-        ep.Transparency=1; ep.CastShadow=false; ep.Anchored=true; ep.CanCollide=false
-        Instance.new("SpecialMesh",ep).MeshType=Enum.MeshType.Sphere
-        local eAngle=((ei-1)/EXPLODE_COUNT)*math.pi*2
-        table.insert(explodeParts,{
-            part=ep,
-            dx=math.cos(eAngle)*math.random(80,180),
-            dy=math.random(60,140),
-            dz=math.sin(eAngle)*math.random(80,180),
-        })
-    end
+    -- Particle 1: sparks แตกออก — ใช้ texture ดาว
+    local pe=Instance.new("ParticleEmitter",head)
+    pe.Texture="rbxassetid://2273224484"
+    pe.Rate=400; pe.Lifetime=NumberRange.new(0.15,0.6); pe.Speed=NumberRange.new(8,35)
+    pe.SpreadAngle=Vector2.new(60,60)
+    pe.Color=ColorSequence.new({
+        ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),
+        ColorSequenceKeypoint.new(0.3,State.meteorColor),
+        ColorSequenceKeypoint.new(0.7,Color3.fromRGB(255,200,80)),
+        ColorSequenceKeypoint.new(1,Color3.fromRGB(255,100,0)),
+    })
+    pe.Size=NumberSequence.new({NumberSequenceKeypoint.new(0,4.0),NumberSequenceKeypoint.new(0.4,2.0),NumberSequenceKeypoint.new(1,0)})
+    pe.LightEmission=1; pe.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0),NumberSequenceKeypoint.new(1,1)})
+    pe.EmissionDirection=Enum.NormalId.Back; pe.RotSpeed=NumberRange.new(-180,180); pe.Rotation=NumberRange.new(0,360)
 
-    -- [SHOCKWAVE]
-    local shockwave=Instance.new("Part",meteorFolder)
-    shockwave.Size=Vector3.new(1,1,1); shockwave.Material=Enum.Material.Neon
-    shockwave.Color=Color3.fromRGB(255,255,255); shockwave.Transparency=1
-    shockwave.CastShadow=false; shockwave.Anchored=true; shockwave.CanCollide=false
-    Instance.new("SpecialMesh",shockwave).MeshType=Enum.MeshType.Sphere
+    -- Particle 2: ember trail ใช้ fire texture
+    local pe2=Instance.new("ParticleEmitter",body)
+    pe2.Texture="rbxassetid://6060542021"
+    pe2.Rate=150; pe2.Lifetime=NumberRange.new(0.1,0.4); pe2.Speed=NumberRange.new(2,12)
+    pe2.SpreadAngle=Vector2.new(25,25)
+    pe2.Color=ColorSequence.new({
+        ColorSequenceKeypoint.new(0,Color3.fromRGB(255,220,100)),
+        ColorSequenceKeypoint.new(0.5,Color3.fromRGB(255,120,20)),
+        ColorSequenceKeypoint.new(1,Color3.fromRGB(180,50,0)),
+    })
+    pe2.Size=NumberSequence.new({NumberSequenceKeypoint.new(0,2.0),NumberSequenceKeypoint.new(1,0)})
+    pe2.LightEmission=0.8; pe2.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.1),NumberSequenceKeypoint.new(1,1)})
+    pe2.EmissionDirection=Enum.NormalId.Back
 
-    local life=0; local isFading=false; local explodeT=nil
-    local startPos=Vector3.new(sx,sy,sz)
+    local life=0; local maxLife=5.5; local isFading=false
 
+    -- self-disconnect หลัง maxLife
     local meteorConn
     meteorConn=RunService.Heartbeat:Connect(function(dt)
-        if not meteorFolder or not meteorFolder.Parent then
-            pcall(function() meteorConn:Disconnect() end); return
-        end
         life=life+dt
-
-        -- [StellarA] trajectory ตกแบบมีแรงโน้มถ่วง
-        local gravity=-6
-        local np=Vector3.new(
-            sx + dir.X*speed*life,
-            sy + dir.Y*speed*life + 0.5*gravity*life*life,
-            sz + dir.Z*speed*life
-        )
-        local t=tick()
-
-        -- PHASE: เคลื่อนที่
-        if not isFading then
-            -- [StellarFlu] head color pulse ตามธีม
-            local hColor=StellarFlu.meteorHeadColor(meteorC, t)
-            local pulse=1+math.sin(t*22)*0.18
-            local aPulse=1+math.sin(t*14)*0.28
-
+        if life>=maxLife-0.5 and not isFading then
+            isFading=true; pe.Enabled=false; pe2.Enabled=false
             pcall(function()
-                head.CFrame=CFrame.new(np)
-                head.Size=Vector3.new(9*pulse,9*pulse,9*pulse)
-                head.Color=hColor
-
-                aura.CFrame=CFrame.new(np)
-                aura.Size=Vector3.new(28*aPulse,28*aPulse,28*aPulse)
-                aura.Transparency=0.68+math.sin(t*8)*0.1
-                aura.Color=meteorC
-
-                pLight.Color=hColor
-                pLight.Brightness=7+math.sin(t*18)*2
-
-                -- [StellarFlu] trail segments
-                for ti,tr in ipairs(trails) do
-                    local offset=tr.len*0.5
-                    local trPos=np - dir*offset
-                    tr.part.CFrame=CFrame.lookAt(trPos, trPos+dir)
-                    -- breathing transparency
-                    tr.part.Transparency=tr.baseAlpha+math.sin(t*5+ti)*0.08
-                    tr.part.Color=StellarFlu.meteorTrailColor((ti-1)/(TRAIL_COUNT-1), meteorC, t)
-                end
+                TweenService:Create(glow,TweenInfo.new(0.2,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=Vector3.new(80,80,80),Transparency=0}):Play()
+                TweenService:Create(pLight,TweenInfo.new(0.2),{Range=500,Brightness=8}):Play()
+                TweenService:Create(head, TweenInfo.new(0.5),{Transparency=1}):Play()
+                TweenService:Create(body, TweenInfo.new(0.5),{Transparency=1}):Play()
+                TweenService:Create(tail, TweenInfo.new(0.5),{Transparency=1}):Play()
+                TweenService:Create(tail2,TweenInfo.new(0.5),{Transparency=1}):Play()
             end)
         end
-
-        -- PHASE: เริ่ม fade ก่อนหมด
-        if life>=maxLife-0.8 and not isFading then
-            isFading=true
-            explodeT=0
-            -- ซ่อน trail + head
-            pcall(function()
-                for _,tr in ipairs(trails) do
-                    TweenService:Create(tr.part,TweenInfo.new(0.35),{Transparency=1}):Play()
-                end
-                TweenService:Create(head,TweenInfo.new(0.25),{Transparency=1,Size=Vector3.new(0,0,0)}):Play()
-                TweenService:Create(aura,TweenInfo.new(0.2),{Transparency=1}):Play()
-                TweenService:Create(pLight,TweenInfo.new(0.2),{Brightness=0}):Play()
-            end)
-            -- [NEW] EXPLOSION: กระจาย explodeParts
-            pcall(function()
-                for _,ep in ipairs(explodeParts) do
-                    ep.part.CFrame=CFrame.new(np)
-                    ep.part.Transparency=0.15
-                    ep.part.Size=Vector3.new(4,4,4)
-                    TweenService:Create(ep.part,TweenInfo.new(0.9,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{
-                        CFrame=CFrame.new(np+Vector3.new(ep.dx,ep.dy,ep.dz)),
-                        Transparency=1,
-                        Size=Vector3.new(0.5,0.5,0.5),
-                    }):Play()
-                end
-                -- shockwave ขยาย
-                shockwave.CFrame=CFrame.new(np)
-                shockwave.Size=Vector3.new(1,1,1)
-                shockwave.Transparency=0.3
-                TweenService:Create(shockwave,TweenInfo.new(0.7,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{
-                    Size=Vector3.new(200,200,200),
-                    Transparency=1,
-                }):Play()
-            end)
-        end
-
-        -- cleanup หมดอายุ
         if life>=maxLife then
-            pcall(function()
-                head:Destroy(); aura:Destroy(); shockwave:Destroy()
-                for _,tr in ipairs(trails) do tr.part:Destroy() end
-                for _,ep in ipairs(explodeParts) do ep.part:Destroy() end
-            end)
+            pcall(function() head:Destroy(); body:Destroy(); tail:Destroy(); tail2:Destroy(); glow:Destroy() end)
             pcall(function() meteorConn:Disconnect() end)
+            return
         end
+        local np=Vector3.new(sx,sy,sz)+dir*speed*life
+        pcall(function()
+            if not isFading then
+                head.CFrame=CFrame.new(np)
+                body.CFrame=CFrame.lookAt(np-dir*(len*0.5),np-dir*(len*0.5)+dir)*CFrame.Angles(math.pi/2,0,0)
+                tail.CFrame=CFrame.lookAt(np-dir*(len*1.5),np-dir*(len*1.5)+dir)*CFrame.Angles(math.pi/2,0,0)
+                tail2.CFrame=CFrame.lookAt(np-dir*(len*3.2),np-dir*(len*3.2)+dir)*CFrame.Angles(math.pi/2,0,0)
+                local pulse=1+math.sin(life*28)*0.18
+                glow.CFrame=CFrame.new(np); glow.Size=Vector3.new(22*pulse,22*pulse,22*pulse)
+            else
+                head.CFrame=head.CFrame+dir*speed*0.08*dt; glow.CFrame=head.CFrame
+                TweenService:Create(glow,TweenInfo.new(0.3),{Transparency=1,Size=Vector3.new(0,0,0)}):Play()
+            end
+        end)
     end)
-    table.insert(meteorConns, meteorConn)
+    table.insert(meteorConns,meteorConn)
 end
 
 local function startMeteor()
     clearMeteor()
-    local ok=SAS:request("meteor"); if not ok then StellarAI:log("Meteor denied by SAS"); return end
+    local ok = SAS:request("meteor")
+    if not ok then StellarAI:log("Meteor denied by SAS"); return end
     meteorRunning=true
     meteorFolder=Instance.new("Folder",workspace); meteorFolder.Name="StellarMeteor"
     task.spawn(function()
         while meteorRunning do
-            spawnOneMeteor()
-            task.wait(math.random()*State.meteorInterval+0.8)
+            spawnOneMeteor(); task.wait(math.random()*State.meteorInterval+0.5)
         end
     end)
 end
+
 
 -- ================================================================
 -- SECTION 15: SUN OBJECT [FIXED — ไกลขึ้น, ไม่ขาว]
