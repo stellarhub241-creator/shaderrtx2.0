@@ -968,11 +968,9 @@ local function startMeteor()
             spawnOneMeteor(); task.wait(math.random()*State.meteorInterval+0.5)
         end
     end)
-end
-
-
+end)
 -- ================================================================
--- SECTION 15: SUN OBJECT [FIXED — ไกลขึ้น, ไม่ขาว]
+-- SECTION 15: SUN OBJECT — 60 rays 3D fibonacci (adapted to StellarA)
 -- ================================================================
 local sunFolder=nil; local sunConns={}
 
@@ -980,99 +978,95 @@ local function clearSunray()
     for _,c in pairs(sunConns) do pcall(function() c:Disconnect() end) end
     sunConns={}
     if sunFolder and sunFolder.Parent then pcall(function() sunFolder:Destroy() end) end
-    sunFolder=nil; SAS:release("sun")
+    sunFolder=nil
+    SAS:release("sun")
 end
 
 local function startSunray()
     clearSunray()
-    local ok,q=SAS:request("sun"); if not ok then StellarAI:log("Sun denied by SAS"); return end
+    local ok,q = SAS:request("sun")
+    if not ok then StellarAI:log("Sun denied by SAS"); return end
     sunFolder=Instance.new("Folder",workspace); sunFolder.Name="StellarSun"
     local cam=workspace.CurrentCamera
 
-    local core=Instance.new("Part",sunFolder)
-    core.Size=Vector3.new(120,120,120); core.Material=Enum.Material.Neon
-    core.Color=Color3.fromRGB(255,252,200); core.Transparency=0
-    core.CastShadow=false; core.Anchored=true; core.CanCollide=false
+    -- Core
+    local core=Instance.new("Part",sunFolder); core.Size=Vector3.new(100,100,100); core.Material=Enum.Material.Neon
+    core.Color=Color3.fromRGB(255,248,180); core.Transparency=0; core.CastShadow=false; core.Anchored=true; core.CanCollide=false
     Instance.new("SpecialMesh",core).MeshType=Enum.MeshType.Sphere
+    local sunLight=Instance.new("PointLight",core); sunLight.Color=Color3.fromRGB(255,220,150); sunLight.Brightness=5*q; sunLight.Range=1000; sunLight.Shadows=false
 
-    -- [FIX] PointLight brightness ลดลง ไม่ทำ atmosphere ขาว
-    local sunLight=Instance.new("PointLight",core)
-    sunLight.Color=Color3.fromRGB(255,220,150)
-    sunLight.Brightness=2.5   -- ลดจาก 6 → 2.5
-    sunLight.Range=800        -- ลดจาก 1200 → 800
-    sunLight.Shadows=false
-
-    local CORONA_RADII={150,220,320,460,650,950}
+    -- Corona 5 ชั้น
+    local coronaData={
+        {sz=145,col=Color3.fromRGB(255,228,100),tr=0.55},
+        {sz=200,col=Color3.fromRGB(255,195,55), tr=0.70},
+        {sz=280,col=Color3.fromRGB(255,155,28), tr=0.84},
+        {sz=400,col=Color3.fromRGB(255,108,8),  tr=0.93},
+        {sz=560,col=Color3.fromRGB(255,60,0),   tr=0.96},
+    }
     local coronaParts={}
-    for i,sz in ipairs(CORONA_RADII) do
-        local c=Instance.new("Part",sunFolder)
-        c.Size=Vector3.new(sz,sz,sz); c.Material=Enum.Material.Neon
-        c.CastShadow=false; c.Anchored=true; c.CanCollide=false
+    for _,l in ipairs(coronaData) do
+        local c=Instance.new("Part",sunFolder); c.Size=Vector3.new(l.sz,l.sz,l.sz); c.Material=Enum.Material.Neon
+        c.Color=l.col; c.Transparency=l.tr; c.CastShadow=false; c.Anchored=true; c.CanCollide=false
         Instance.new("SpecialMesh",c).MeshType=Enum.MeshType.Sphere
-        table.insert(coronaParts,{part=c,baseSz=sz,dist=(i-1)/(#CORONA_RADII-1)})
+        table.insert(coronaParts,{part=c,baseSz=l.sz,baseTr=l.tr})
     end
 
-    local RAY_COUNT=math.floor(24*q)
+    -- ★★★ 60 rays ใช้ Fibonacci sphere ★★★
+    local RAY_COUNT = 60
     local rays={}
     for i=1,RAY_COUNT do
-        local fibDir=StellarA.fibSphere(i,RAY_COUNT)
-        local rLen=math.random(550,1100)
-        local r=Instance.new("Part",sunFolder)
-        r.Size=Vector3.new(i<=14 and 7 or 4, i<=14 and 7 or 4, rLen)
-        r.Material=Enum.Material.Neon; r.Transparency=0.62
-        r.CastShadow=false; r.Anchored=true; r.CanCollide=false
-        table.insert(rays,{part=r,fibDir=fibDir,rLen=rLen,kind=i<=14 and "main" or "sub",baseAngle=i/RAY_COUNT*math.pi*2})
+        local phi   = math.acos(1 - 2*i/(RAY_COUNT+1))
+        local theta = (math.pi*(1+math.sqrt(5)))*(i-1)
+        local r = Instance.new("Part",sunFolder)
+        local isMain = i <= 40
+        local rLen = math.random(400, 850)
+        r.Size = Vector3.new(isMain and 5 or 3, isMain and 5 or 3, rLen)
+        r.Material = Enum.Material.Neon
+        r.Color = Color3.fromRGB(255,230,130)
+        r.Transparency = 0.65
+        r.CastShadow = false; r.Anchored = true; r.CanCollide = false
+        table.insert(rays,{
+            part=r,
+            phi=phi,
+            theta=theta,
+            rLen=rLen,
+            kind=isMain and "main" or "sub",
+        })
     end
 
-    local ambGlow=Instance.new("Part",sunFolder)
-    ambGlow.Size=Vector3.new(900,900,900); ambGlow.Material=Enum.Material.Neon
-    ambGlow.Color=Color3.fromRGB(255,160,40); ambGlow.Transparency=0.970
-    ambGlow.CastShadow=false; ambGlow.Anchored=true; ambGlow.CanCollide=false
-    Instance.new("SpecialMesh",ambGlow).MeshType=Enum.MeshType.Sphere
-
-    local aura2=Instance.new("Part",sunFolder)
-    aura2.Size=Vector3.new(420,420,420); aura2.Material=Enum.Material.Neon
-    aura2.Color=Color3.fromRGB(255,200,80); aura2.Transparency=0.94
-    aura2.CastShadow=false; aura2.Anchored=true; aura2.CanCollide=false
-    Instance.new("SpecialMesh",aura2).MeshType=Enum.MeshType.Sphere
+    -- Ambient glow
+    local ambientGlow=Instance.new("Part",sunFolder); ambientGlow.Size=Vector3.new(700,700,700); ambientGlow.Material=Enum.Material.Neon
+    ambientGlow.Color=Color3.fromRGB(255,140,30); ambientGlow.Transparency=0.97; ambientGlow.CastShadow=false; ambientGlow.Anchored=true; ambientGlow.CanCollide=false
+    Instance.new("SpecialMesh",ambientGlow).MeshType=Enum.MeshType.Sphere
 
     local t0=tick()
     local conn=RunService.Heartbeat:Connect(function()
         if not sunFolder or not sunFolder.Parent then return end
-        local cp=cam.CFrame.Position; local t=tick()-t0; local ag=t*0.016
-        -- [FIX] radius ไกลขึ้น 820 → 1400
-        local sunPos=StellarA.orbit(cp,1400,ag,520,ag*0.3)
+        local cp=cam.CFrame.Position; local t=tick()-t0; local ag=t*0.018
+        local sunPos=cp+Vector3.new(math.cos(ag)*800,400+math.sin(t*0.1)*35,math.sin(ag)*800)
         local pulse=1+math.sin(t*1.4)*0.035
 
         pcall(function()
-            core.CFrame=CFrame.new(sunPos)
-            core.Size=Vector3.new(120*pulse,120*pulse,120*pulse)
-            ambGlow.CFrame=CFrame.new(sunPos)
-            ambGlow.Transparency=0.965+math.sin(t*0.8)*0.02
-            aura2.CFrame=CFrame.new(sunPos)
-            aura2.Transparency=0.93+StellarFlu.sunAuraAlpha(0.5,t)*0.04
-            aura2.Size=Vector3.new(420*(1+math.sin(t*0.9)*0.04),420*(1+math.sin(t*0.9)*0.04),420*(1+math.sin(t*0.9)*0.04))
+            core.CFrame=CFrame.new(sunPos); core.Size=Vector3.new(100*pulse,100*pulse,100*pulse)
+            ambientGlow.CFrame=CFrame.new(sunPos); ambientGlow.Transparency=0.96+math.sin(t*0.7)*0.02
 
             for _,lc in ipairs(coronaParts) do
                 lc.part.CFrame=CFrame.new(sunPos)
                 local sz=lc.baseSz*pulse; lc.part.Size=Vector3.new(sz,sz,sz)
-                lc.part.Color=StellarFlu.sunAuraColor(lc.dist,core.Color,t)
-                lc.part.Transparency=StellarFlu.sunAuraAlpha(lc.dist,t)
+                lc.part.Transparency=lc.baseTr+math.sin(t*1.2+lc.baseSz*0.01)*0.025
             end
 
             for _,r in ipairs(rays) do
-                local rotAngle=r.baseAngle+t*0.32
-                local cosA=math.cos(rotAngle); local sinA=math.sin(rotAngle)
-                local dx=r.fibDir.X*cosA - r.fibDir.Z*sinA
-                local dz=r.fibDir.X*sinA + r.fibDir.Z*cosA
-                local dy=r.fibDir.Y
-                local rayDir=Vector3.new(dx,dy,dz).Unit
-                local midPt=sunPos+rayDir*(r.rLen*0.5)
-                r.part.CFrame=CFrame.lookAt(midPt,midPt+rayDir)
-                local trBase=r.kind=="main" and 0.58 or 0.70
-                r.part.Transparency=trBase+math.abs(math.sin(t*1.8+r.baseAngle))*0.25
-                local h=((t*5+r.baseAngle*25)%360)/360
-                r.part.Color=Color3.fromHSV(StellarA.remap(h,0,1,0.06,0.14),0.88,1)
+                local theta = r.theta + t*0.35
+                local dx = math.sin(r.phi)*math.cos(theta)
+                local dy = math.cos(r.phi)
+                local dz = math.sin(r.phi)*math.sin(theta)
+                local rayDir = Vector3.new(dx,dy,dz).Unit
+                local midPt  = sunPos + rayDir*(r.rLen*0.5)
+                r.part.CFrame = CFrame.lookAt(midPt, midPt+rayDir)
+                r.part.Transparency = (r.kind=="main" and 0.60 or 0.70) + math.abs(math.sin(t*2+r.phi))*0.22
+                local hShift = ((t*6 + r.phi*20)%360)/360
+                r.part.Color = Color3.fromHSV(0.08 + hShift*0.05, 0.85, 1)
             end
         end)
     end)
